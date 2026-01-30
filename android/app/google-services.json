@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "522623189789",
+    "project_id": "my-alharith-first-one",
+    "storage_bucket": "my-alharith-first-one.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:522623189789:android:c4ab772fcb9b8af25e97f4",
+        "android_client_info": {
+          "package_name": "com.example.dawatime_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHC8Ie-Q6JW1p9cMVVNP9gyiRdW1W4aiQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
