@@ -1,35 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'core/theme/app_theme.dart';
+import 'features/home/home_screen.dart';
 
-void main()async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MyApp());
+  runApp(const DawaTimeApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class DawaTimeApp extends StatelessWidget {
+  const DawaTimeApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home:Homepage()
+      title: "DawaTime",
+      theme: AppTheme.lightTheme,
+      home: const HomeScreen(),
     );
   }
 }
-
-class Homepage extends StatelessWidget {
-  const Homepage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(appBar: AppBar(
-      backgroundColor: Colors.deepPurple,
-      actions: [Icon(Icons.add_ic_call),
-    ],),);
-  }
-}
-
