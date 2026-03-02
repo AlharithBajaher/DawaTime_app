@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'features/auth/auth_wrapper.dart';
 import 'firebase_options.dart';
-import 'core/theme/app_theme.dart';
-import 'features/home/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,9 +18,7 @@ class DawaTimeApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: "DawaTime",
-      theme: AppTheme.lightTheme,
-      home: const HomeScreen(),
-    );
+      home: AuthWrapper(),
+      );
   }
 }

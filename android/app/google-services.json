@@ -12,7 +12,20 @@
           "package_name": "com.example.dawatime_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "522623189789-js8cgkhjsu2fpo0pvgh37nuv6596tdll.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dawatime_app",
+            "certificate_hash": "a68d0f67135822a101a05439f0428a05ea6b91a1"
+          }
+        },
+        {
+          "client_id": "522623189789-8iah6uuvmido63qg1vl512enoskk3bm7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDHC8Ie-Q6JW1p9cMVVNP9gyiRdW1W4aiQ"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "522623189789-8iah6uuvmido63qg1vl512enoskk3bm7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
