@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -5,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../app/config/admin_access.dart';
 import '../models/app_user_model.dart';
+import '../models/password_reset_request_model.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -12,6 +15,7 @@ class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: const ['email', 'profile'],
   );
+  final Random _random = Random.secure();
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
@@ -57,6 +61,77 @@ class AuthService {
     return getUserProfile(uid);
   }
 
+  Future<void> updateCurrentUserProfile({
+    required String name,
+    required String username,
+    String? pharmacyName,
+    String? pharmacyLocation,
+    String? pharmacyPhone,
+  }) async {
+    final user = currentUser;
+    if (user == null) {
+      throw StateError('No authenticated user found for profile update.');
+    }
+
+    final normalizedUsername = normalizeUsername(username);
+    if (name.trim().length < 3) {
+      throw FirebaseAuthException(
+        code: 'invalid-display-name',
+        message: 'Please enter a clear full name.',
+      );
+    }
+
+    if (normalizedUsername.length < 4) {
+      throw FirebaseAuthException(
+        code: 'invalid-username',
+        message: 'Please use at least 4 letters, numbers, or underscores.',
+      );
+    }
+
+    final isAvailable = await isUsernameAvailable(
+      normalizedUsername,
+      exceptUid: user.uid,
+    );
+    if (!isAvailable) {
+      throw FirebaseAuthException(
+        code: 'username-taken',
+        message: 'This username is already taken.',
+      );
+    }
+
+    final profile = await getUserProfile(user.uid);
+    final isPharmacist = profile?.role == 'pharmacist';
+    final trimmedName = name.trim();
+    final trimmedPharmacyName = pharmacyName?.trim() ?? '';
+    final trimmedPharmacyLocation = pharmacyLocation?.trim() ?? '';
+    final trimmedPharmacyPhone = pharmacyPhone?.trim() ?? '';
+
+    final updateData = <String, dynamic>{
+      'name': name.trim(),
+      'username': normalizedUsername,
+      'photoUrl': user.photoURL,
+    };
+    if (isPharmacist) {
+      updateData['pharmacyName'] = trimmedPharmacyName;
+      updateData['pharmacyLocation'] = trimmedPharmacyLocation;
+      updateData['pharmacyPhone'] = trimmedPharmacyPhone;
+    }
+
+    await _firestore.collection('users').doc(user.uid).update(updateData);
+
+    if (isPharmacist) {
+      await _syncPublishedMedicinesProfile(
+        pharmacistId: user.uid,
+        pharmacistName: trimmedName,
+        pharmacyName: trimmedPharmacyName,
+        pharmacyLocation: trimmedPharmacyLocation,
+        pharmacyPhone: trimmedPharmacyPhone,
+      );
+    }
+
+    await user.updateDisplayName(trimmedName);
+  }
+
   Future<void> saveUserData({
     required String uid,
     required String name,
@@ -66,6 +141,9 @@ class AuthService {
     String authProvider = 'password',
     String? photoUrl,
     String approvalStatus = 'approved',
+    String? pharmacyName,
+    String? pharmacyLocation,
+    String? pharmacyPhone,
   }) async {
     final resolvedRole = _resolvedRole(email: email, requestedRole: role);
     await _firestore.collection('users').doc(uid).set({
@@ -78,6 +156,9 @@ class AuthService {
           : 'approved',
       'authProvider': authProvider,
       'photoUrl': photoUrl,
+      'pharmacyName': pharmacyName,
+      'pharmacyLocation': pharmacyLocation,
+      'pharmacyPhone': pharmacyPhone,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -90,6 +171,9 @@ class AuthService {
     required String role,
     String authProvider = 'password',
     String? photoUrl,
+    String? pharmacyName,
+    String? pharmacyLocation,
+    String? pharmacyPhone,
   }) async {
     final docRef = _firestore.collection('users').doc(uid);
     final existing = await docRef.get();
@@ -120,6 +204,9 @@ class AuthService {
       'approvalStatus': resolvedRole == 'pharmacist' ? 'pending' : 'approved',
       'authProvider': authProvider,
       'photoUrl': photoUrl,
+      'pharmacyName': pharmacyName,
+      'pharmacyLocation': pharmacyLocation,
+      'pharmacyPhone': pharmacyPhone,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
@@ -385,6 +472,106 @@ class AuthService {
         );
   }
 
+  Stream<List<PasswordResetRequestModel>> watchPasswordResetRequests() {
+    return _firestore
+        .collection('password_reset_requests')
+        .orderBy('updatedAt', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map(PasswordResetRequestModel.fromFirestore)
+              .toList(growable: false),
+        );
+  }
+
+  Future<void> submitPasswordResetRequest({required String email}) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail.isEmpty || !normalizedEmail.contains('@')) {
+      throw FirebaseAuthException(
+        code: 'invalid-email',
+        message: 'Please enter a valid email address.',
+      );
+    }
+
+    final userQuery = await _firestore
+        .collection('users')
+        .where('email', isEqualTo: normalizedEmail)
+        .limit(1)
+        .get();
+    if (userQuery.docs.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'user-not-found',
+        message: 'No account found for this email.',
+      );
+    }
+
+    final docId = _requestDocIdFromEmail(normalizedEmail);
+    await _firestore.collection('password_reset_requests').doc(docId).set({
+      'email': normalizedEmail,
+      'status': 'pending',
+      'requestedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<String> issuePasswordResetCode({
+    required String requestId,
+    required String adminUid,
+  }) async {
+    final code = (_random.nextInt(900000) + 100000).toString();
+    final expiry = DateTime.now().toLocal().add(const Duration(minutes: 30));
+
+    await _firestore.collection('password_reset_requests').doc(requestId).set({
+      'status': 'code_sent',
+      'accessCode': code,
+      'handledBy': adminUid,
+      'sentAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(expiry),
+    }, SetOptions(merge: true));
+
+    return code;
+  }
+
+  Future<void> sendPasswordResetEmailViaCode({
+    required String email,
+    required String accessCode,
+  }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedCode = accessCode.trim();
+    if (normalizedEmail.isEmpty || normalizedCode.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-argument',
+        message: 'Email and access code are required.',
+      );
+    }
+
+    final requestId = _requestDocIdFromEmail(normalizedEmail);
+
+    try {
+      await _firestore
+          .collection('password_reset_requests')
+          .doc(requestId)
+          .set({
+            'email': normalizedEmail,
+            'status': 'email_sent',
+            'accessCode': normalizedCode,
+            'emailSentAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied') {
+        throw FirebaseAuthException(
+          code: 'invalid-access-code',
+          message: 'The access code is invalid or expired.',
+        );
+      }
+      rethrow;
+    }
+
+    await _auth.sendPasswordResetEmail(email: normalizedEmail);
+  }
+
   Future<void> updatePharmacistApproval({
     required String userId,
     required String approvalStatus,
@@ -445,5 +632,37 @@ class AuthService {
     }
 
     return requestedRole;
+  }
+
+  String _requestDocIdFromEmail(String email) {
+    return email.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9@._-]'), '');
+  }
+
+  Future<void> _syncPublishedMedicinesProfile({
+    required String pharmacistId,
+    required String pharmacistName,
+    required String pharmacyName,
+    required String pharmacyLocation,
+    required String pharmacyPhone,
+  }) async {
+    final snapshot = await _firestore
+        .collection('shared_medicines')
+        .where('pharmacistId', isEqualTo: pharmacistId)
+        .get();
+    if (snapshot.docs.isEmpty) {
+      return;
+    }
+
+    final batch = _firestore.batch();
+    for (final doc in snapshot.docs) {
+      batch.update(doc.reference, {
+        'pharmacistName': pharmacistName,
+        'pharmacyName': pharmacyName,
+        'location': pharmacyLocation,
+        'pharmacyPhone': pharmacyPhone,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
   }
 }

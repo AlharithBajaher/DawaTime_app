@@ -216,6 +216,45 @@ class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
       ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _DawaTimePageTransitionsBuilder(),
+          TargetPlatform.iOS: _DawaTimePageTransitionsBuilder(),
+          TargetPlatform.linux: _DawaTimePageTransitionsBuilder(),
+          TargetPlatform.macOS: _DawaTimePageTransitionsBuilder(),
+          TargetPlatform.windows: _DawaTimePageTransitionsBuilder(),
+        },
+      ),
+    );
+  }
+}
+
+class _DawaTimePageTransitionsBuilder extends PageTransitionsBuilder {
+  const _DawaTimePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curvedAnimation = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    return FadeTransition(
+      opacity: curvedAnimation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.04, 0.03),
+          end: Offset.zero,
+        ).animate(curvedAnimation),
+        child: child,
+      ),
     );
   }
 }

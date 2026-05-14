@@ -151,7 +151,7 @@ class HeroPanel extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DepthCard(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(16),
       gradient: LinearGradient(
         colors: config.heroGradient,
         begin: Alignment.topLeft,
@@ -164,8 +164,8 @@ class HeroPanel extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 58,
-                height: 58,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withValues(alpha: 0.16),
@@ -173,7 +173,7 @@ class HeroPanel extends StatelessWidget {
                 child: const Icon(
                   Icons.medication_rounded,
                   color: Colors.white,
-                  size: 30,
+                  size: 22,
                 ),
               ),
               const Spacer(),
@@ -187,45 +187,47 @@ class HeroPanel extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 30),
+          const SizedBox(height: 14),
           Text(
             config.heroTitle,
             style: theme.textTheme.displaySmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              height: 1.05,
+              height: 1.12,
+              fontSize: 24,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Text(
             config.heroSubtitle,
             style: theme.textTheme.titleMedium?.copyWith(
               color: Colors.white.withValues(alpha: 0.88),
-              height: 1.65,
+              height: 1.5,
+              fontSize: 12.5,
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 14),
           RoleSelector(
             selectedRole: selectedRole,
             onRoleSelected: onRoleSelected,
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 12),
           Center(child: RoleIllustration(config: config)),
-          const SizedBox(height: 28),
+          const SizedBox(height: 12),
           ...config.featureBullets.map(
             (bullet) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 children: [
                   Container(
-                    width: 12,
-                    height: 12,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white.withValues(alpha: 0.92),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       bullet,
@@ -233,6 +235,7 @@ class HeroPanel extends StatelessWidget {
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                         height: 1.45,
+                        fontSize: 12.5,
                       ),
                     ),
                   ),
@@ -305,15 +308,15 @@ class RoleSelector extends StatelessWidget {
     ];
 
     return Wrap(
-      spacing: 12,
-      runSpacing: 12,
+      spacing: 10,
+      runSpacing: 10,
       children: entries.map((entry) {
         final selected = selectedRole == entry.roleKey;
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          width: 220,
+          width: 170,
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: selected ? 0.18 : 0.08),
             borderRadius: BorderRadius.circular(24),
@@ -327,20 +330,24 @@ class RoleSelector extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               onTap: () => onRoleSelected(entry.roleKey),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Container(
-                          width: 42,
-                          height: 42,
+                          width: 34,
+                          height: 34,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             color: Colors.white.withValues(alpha: 0.16),
                           ),
-                          child: Icon(entry.icon, color: Colors.white),
+                          child: Icon(
+                            entry.icon,
+                            color: Colors.white,
+                            size: 20,
+                          ),
                         ),
                         const Spacer(),
                         Icon(
@@ -348,24 +355,26 @@ class RoleSelector extends StatelessWidget {
                               ? Icons.check_circle_rounded
                               : Icons.radio_button_unchecked_rounded,
                           color: Colors.white,
+                          size: 22,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 8),
                     Text(
                       entry.roleName,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 3),
                     Text(
                       entry.shortRoleHint,
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.82),
-                        height: 1.4,
+                        height: 1.35,
+                        fontSize: 11.5,
                       ),
                     ),
                   ],
@@ -387,8 +396,8 @@ class RoleIllustration extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 340,
-      height: 250,
+      width: 272,
+      height: 178,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -396,7 +405,7 @@ class RoleIllustration extends StatelessWidget {
             left: 24,
             top: 24,
             child: _FloatingBubble(
-              size: 76,
+              size: 46,
               color: Colors.white.withValues(alpha: 0.15),
               icon: Icons.favorite_rounded,
             ),
@@ -405,7 +414,7 @@ class RoleIllustration extends StatelessWidget {
             right: 12,
             bottom: 36,
             child: _FloatingBubble(
-              size: 88,
+              size: 50,
               color: Colors.white.withValues(alpha: 0.18),
               icon: Icons.calendar_month_rounded,
             ),
@@ -414,16 +423,16 @@ class RoleIllustration extends StatelessWidget {
             right: 34,
             top: 14,
             child: _FloatingBubble(
-              size: 64,
+              size: 42,
               color: Colors.white.withValues(alpha: 0.12),
               icon: Icons.auto_graph_rounded,
             ),
           ),
           Container(
-            width: 290,
-            height: 210,
+            width: 236,
+            height: 148,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(48),
+              borderRadius: BorderRadius.circular(40),
               gradient: LinearGradient(
                 colors: [
                   Colors.white.withValues(alpha: 0.95),
@@ -444,12 +453,12 @@ class RoleIllustration extends StatelessWidget {
               children: [
                 Positioned(
                   left: 18,
-                  top: 22,
+                  top: 18,
                   child: Container(
-                    width: 128,
-                    height: 92,
+                    width: 98,
+                    height: 66,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
+                      borderRadius: BorderRadius.circular(24),
                       gradient: LinearGradient(
                         colors: config.buttonGradient,
                         begin: Alignment.topLeft,
@@ -460,29 +469,29 @@ class RoleIllustration extends StatelessWidget {
                 ),
                 Positioned(
                   right: 24,
-                  top: 24,
+                  top: 20,
                   child: CircleAvatar(
-                    radius: 42,
+                    radius: 28,
                     backgroundColor: config.highlightColor.withValues(
                       alpha: 0.12,
                     ),
                     child: Icon(
                       config.icon,
-                      size: 42,
+                      size: 26,
                       color: config.highlightColor,
                     ),
                   ),
                 ),
                 Positioned(
-                  left: 32,
-                  right: 32,
-                  bottom: 28,
+                  left: 28,
+                  right: 28,
+                  bottom: 22,
                   child: Row(
                     children: const [
                       Expanded(
                         child: _MiniTile(icon: Icons.medication_outlined),
                       ),
-                      SizedBox(width: 12),
+                      SizedBox(width: 10),
                       Expanded(
                         child: _MiniTile(icon: Icons.shield_moon_outlined),
                       ),
@@ -533,7 +542,7 @@ class _ModeButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Center(
               child: Text(
                 label,
@@ -580,12 +589,12 @@ class _MiniTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 72,
+      height: 50,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
+        borderRadius: BorderRadius.circular(22),
         color: const Color(0xFFF6F9FF),
       ),
-      child: Icon(icon, color: AppPalette.text, size: 34),
+      child: Icon(icon, color: AppPalette.text, size: 22),
     );
   }
 }

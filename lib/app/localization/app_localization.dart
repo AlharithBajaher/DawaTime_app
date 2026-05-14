@@ -65,14 +65,13 @@ class AppStrings {
   static const Map<String, Map<String, String>> _localizedValues = {
     'ar': {
       AppText.appName: '\u062F\u0648\u0627\u0621 \u062A\u0627\u064A\u0645',
-      AppText.appLoading:
-          '\u062C\u0627\u0631\u064A \u062A\u062C\u0647\u064A\u0632 \u062F\u0648\u0627\u0621 \u062A\u0627\u064A\u0645',
+      AppText.appLoading: '\u062F\u0648\u0627\u0621 \u062A\u0627\u064A\u0645',
       AppText.home: '\u0627\u0644\u0631\u0626\u064a\u0633\u064a\u0629',
       AppText.medications: '\u0627\u0644\u0623\u062F\u0648\u064A\u0629',
       AppText.updates: '\u0627\u0644\u062A\u062D\u062F\u064A\u062B\u0627\u062A',
       AppText.more: '\u0627\u0644\u0645\u0632\u064A\u062F',
       AppText.dashboard: '\u0627\u0644\u0644\u0648\u062D\u0629',
-      AppText.tasks: '\u0627\u0644\u0645\u0647\u0627\u0645',
+      AppText.tasks: '\u0627\u0644\u0645\u062E\u0632\u0648\u0646',
       AppText.insights:
           '\u0627\u0644\u062A\u062D\u0644\u064A\u0644\u0627\u062A',
       AppText.account: '\u0627\u0644\u062D\u0633\u0627\u0628',
@@ -88,7 +87,7 @@ class AppStrings {
       AppText.english:
           '\u0627\u0644\u0625\u0646\u062C\u0644\u064A\u0632\u064A\u0629',
       AppText.newTask:
-          '\u0645\u0647\u0645\u0629 \u062C\u062F\u064A\u062F\u0629',
+          '\u0639\u0646\u0635\u0631 \u0645\u062E\u0632\u0648\u0646 \u062C\u062F\u064A\u062F',
       AppText.saving: '\u062C\u0627\u0631\u064D \u0627\u0644\u062D\u0641\u0638',
       AppText.welcomeStart: '\u0627\u0628\u062F\u0623 \u0627\u0644\u0622\u0646',
       AppText.welcomeGuide:
@@ -102,13 +101,13 @@ class AppStrings {
     },
     'en': {
       AppText.appName: 'DawaTime',
-      AppText.appLoading: 'Preparing DawaTime',
+      AppText.appLoading: 'DawaTime',
       AppText.home: 'Main',
       AppText.medications: 'Medications',
       AppText.updates: 'Updates',
       AppText.more: 'More',
       AppText.dashboard: 'Dashboard',
-      AppText.tasks: 'Tasks',
+      AppText.tasks: 'Inventory',
       AppText.insights: 'Insights',
       AppText.account: 'Account',
       AppText.settings: 'Settings',
@@ -118,7 +117,7 @@ class AppStrings {
       AppText.languageSubtitle: 'Switch instantly between Arabic and English.',
       AppText.arabic: 'Arabic',
       AppText.english: 'English',
-      AppText.newTask: 'New task',
+      AppText.newTask: 'New inventory item',
       AppText.saving: 'Saving',
       AppText.welcomeStart: 'Start now',
       AppText.welcomeGuide: 'App guide',

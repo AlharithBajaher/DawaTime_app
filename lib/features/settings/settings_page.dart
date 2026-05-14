@@ -4,9 +4,12 @@ import '../../app/localization/app_localization.dart';
 import '../../app/theme/app_metrics.dart';
 import '../../app/theme/app_theme.dart';
 import '../../app/widgets/depth_card.dart';
+import '../../app/widgets/support_center_sheet.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
+
+  static const String _appVersion = '0.0.1';
 
   @override
   Widget build(BuildContext context) {
@@ -79,8 +82,7 @@ class SettingsPage extends StatelessWidget {
                         const SizedBox(height: AppSpacing.md),
                         _LanguageOptionTile(
                           label: context.t(AppText.arabic),
-                          selected:
-                              localeController.locale.languageCode == 'ar',
+                          selected: localeController.locale.languageCode == 'ar',
                           onTap: () {
                             localeController.updateLocale(const Locale('ar'));
                           },
@@ -88,8 +90,7 @@ class SettingsPage extends StatelessWidget {
                         const SizedBox(height: AppSpacing.xs),
                         _LanguageOptionTile(
                           label: context.t(AppText.english),
-                          selected:
-                              localeController.locale.languageCode == 'en',
+                          selected: localeController.locale.languageCode == 'en',
                           onTap: () {
                             localeController.updateLocale(const Locale('en'));
                           },
@@ -97,9 +98,134 @@ class SettingsPage extends StatelessWidget {
                       ],
                     ),
                   ),
+                  const SizedBox(height: AppSpacing.md),
+                  DepthCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.tr(
+                            ar: 'الدعم والتواصل',
+                            en: 'Support & contact',
+                          ),
+                          style: const TextStyle(
+                            fontSize: AppFontSize.title,
+                            fontWeight: FontWeight.w800,
+                            color: AppPalette.text,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        _SettingsActionTile(
+                          icon: Icons.support_agent_rounded,
+                          label: context.tr(
+                            ar: 'التواصل مع دعم دوا تايم',
+                            en: 'Contact DawaTime support',
+                          ),
+                          onTap: () =>
+                              SupportCenterSheet.showSupportSheet(context),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        _SettingsActionTile(
+                          icon: Icons.code_rounded,
+                          label: context.tr(
+                            ar: 'المصمم والمطور',
+                            en: 'Designer & developer',
+                          ),
+                          onTap: () =>
+                              SupportCenterSheet.showDeveloperSheet(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  DepthCard(
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.new_releases_rounded,
+                          color: AppPalette.patientPrimary,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          context.tr(
+                            ar: 'الإصدار: $_appVersion',
+                            en: 'Version: $_appVersion',
+                          ),
+                          style: const TextStyle(
+                            fontSize: AppFontSize.bodyLarge,
+                            fontWeight: FontWeight.w800,
+                            color: AppPalette.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  const Center(
+                    child: Text(
+                      '© 2026 DawaTime',
+                      style: TextStyle(
+                        color: AppPalette.muted,
+                        fontSize: AppFontSize.body,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsActionTile extends StatelessWidget {
+  const _SettingsActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.sm,
+            vertical: AppSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FBFF),
+            border: Border.all(color: const Color(0xFFE1EAF8)),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: AppPalette.patientPrimary),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppPalette.text,
+                    fontSize: AppFontSize.body,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppPalette.muted),
+            ],
           ),
         ),
       ),

@@ -1,4 +1,7 @@
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -11,6 +14,19 @@ import 'firebase_options.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+  if (!kDebugMode) {
+    try {
+      await FirebaseAppCheck.instance
+          .activate(
+            androidProvider: AndroidProvider.playIntegrity,
+            appleProvider: AppleProvider.appAttestWithDeviceCheckFallback,
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // Keep app startup resilient even if App Check provider is temporarily unavailable.
+    }
+  }
   await NotificationService.init();
 
   runApp(const DawaTimeApp());

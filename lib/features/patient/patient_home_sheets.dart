@@ -5,17 +5,21 @@ class _MedicationActionSheet extends StatelessWidget {
     required this.medication,
     required this.onTaken,
     required this.onSkipped,
+    required this.onSnooze30,
+    required this.onSnooze60,
     required this.onReschedule,
     required this.onEdit,
     required this.onDelete,
   });
 
   final MedicationModel medication;
-  final VoidCallback onTaken;
-  final VoidCallback onSkipped;
-  final VoidCallback onReschedule;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final Future<void> Function() onTaken;
+  final Future<void> Function() onSkipped;
+  final Future<void> Function() onSnooze30;
+  final Future<void> Function() onSnooze60;
+  final Future<void> Function() onReschedule;
+  final Future<void> Function() onEdit;
+  final Future<void> Function() onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +36,11 @@ class _MedicationActionSheet extends StatelessWidget {
                 Row(
                   children: [
                     IconButton(
-                      onPressed: onEdit,
+                      onPressed: () async => onEdit(),
                       icon: const Icon(Icons.edit_outlined),
                     ),
                     IconButton(
-                      onPressed: onDelete,
+                      onPressed: () async => onDelete(),
                       icon: const Icon(Icons.delete_outline_rounded),
                     ),
                     const Spacer(),
@@ -63,7 +67,10 @@ class _MedicationActionSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'مجدولة في الساعة ${medication.displayTime()} اليوم',
+                  context.tr(
+                    ar: 'مجدولة اليوم في ${medication.displayTime()}',
+                    en: 'Scheduled today at ${medication.displayTime()}',
+                  ),
                   style: const TextStyle(
                     color: AppPalette.text,
                     fontSize: AppFontSize.bodyLarge,
@@ -85,15 +92,34 @@ class _MedicationActionSheet extends StatelessWidget {
                     Expanded(
                       child: _ActionCircleButton(
                         icon: Icons.access_time_rounded,
-                        label: 'إعادة الجدولة',
+                        label: context.tr(
+                          ar: 'إعادة الجدولة',
+                          en: 'Reschedule',
+                        ),
                         color: const Color(0xFFE9EFFA),
                         onTap: onReschedule,
                       ),
                     ),
                     Expanded(
                       child: _ActionCircleButton(
+                        icon: Icons.snooze_rounded,
+                        label: context.tr(ar: 'تأجيل 30د', en: 'Snooze 30m'),
+                        color: const Color(0xFFE9EFFA),
+                        onTap: onSnooze30,
+                      ),
+                    ),
+                    Expanded(
+                      child: _ActionCircleButton(
+                        icon: Icons.snooze_outlined,
+                        label: context.tr(ar: 'تأجيل 60د', en: 'Snooze 60m'),
+                        color: const Color(0xFFE9EFFA),
+                        onTap: onSnooze60,
+                      ),
+                    ),
+                    Expanded(
+                      child: _ActionCircleButton(
                         icon: Icons.check_rounded,
-                        label: 'تناول',
+                        label: context.tr(ar: 'تناول', en: 'Taken'),
                         color: AppPalette.patientPrimary,
                         foreground: Colors.white,
                         onTap: onTaken,
@@ -102,7 +128,7 @@ class _MedicationActionSheet extends StatelessWidget {
                     Expanded(
                       child: _ActionCircleButton(
                         icon: Icons.close_rounded,
-                        label: 'تخطي',
+                        label: context.tr(ar: 'تخطي', en: 'Skip'),
                         color: const Color(0xFFE9EFFA),
                         onTap: onSkipped,
                       ),
@@ -131,7 +157,7 @@ class _ActionCircleButton extends StatelessWidget {
   final String label;
   final Color color;
   final Color foreground;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -139,12 +165,12 @@ class _ActionCircleButton extends StatelessWidget {
       children: [
         InkWell(
           customBorder: const CircleBorder(),
-          onTap: onTap,
+          onTap: () async => onTap(),
           child: Container(
-            width: 68,
-            height: 68,
+            width: 58,
+            height: 58,
             decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-            child: Icon(icon, color: foreground, size: 30),
+            child: Icon(icon, color: foreground, size: 24),
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -189,7 +215,10 @@ class _MedicationSuccessSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  'تمت إضافة $name بنجاح!',
+                  context.tr(
+                    ar: 'تمت إضافة $name بنجاح!',
+                    en: '$name was added successfully!',
+                  ),
                   style: const TextStyle(
                     fontSize: AppFontSize.sectionTitle,
                     fontWeight: FontWeight.w900,
@@ -203,14 +232,19 @@ class _MedicationSuccessSheet extends StatelessWidget {
                     Navigator.pop(context);
                   },
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('إضافة دواء آخر'),
+                  label: Text(
+                    context.tr(
+                      ar: 'إضافة دواء آخر',
+                      en: 'Add another medicine',
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 TextButton(
                   onPressed: () {
                     Navigator.pop(context);
                   },
-                  child: const Text('تم'),
+                  child: Text(context.tr(ar: 'تم', en: 'Done')),
                 ),
               ],
             ),
@@ -221,6 +255,7 @@ class _MedicationSuccessSheet extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ProfileSheet extends StatelessWidget {
   const _ProfileSheet({required this.onSignOut});
 
@@ -244,28 +279,31 @@ class _ProfileSheet extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Padding(
+                    Padding(
                       padding: AppSpacing.pagePaddingWide,
                       child: Column(
                         children: [
-                          CircleAvatar(
+                          const CircleAvatar(
                             radius: 40,
                             backgroundColor: Color(0xFFEAF4FF),
-                            child: Icon(Icons.person_rounded, size: 42),
+                            child: Icon(Icons.person_rounded, size: 32),
                           ),
-                          SizedBox(height: AppSpacing.sm),
+                          const SizedBox(height: AppSpacing.sm),
                           Text(
-                            'ضيف',
-                            style: TextStyle(
+                            context.tr(ar: 'ضيف', en: 'Guest'),
+                            style: const TextStyle(
                               fontSize: AppFontSize.pageTitle,
                               fontWeight: FontWeight.w900,
                               color: AppPalette.text,
                             ),
                           ),
-                          SizedBox(height: AppSpacing.xxs),
+                          const SizedBox(height: AppSpacing.xxs),
                           Text(
-                            'إنشاء الملف الشخصي',
-                            style: TextStyle(
+                            context.tr(
+                              ar: 'إنشاء الملف الشخصي',
+                              en: 'Create profile',
+                            ),
+                            style: const TextStyle(
                               color: AppPalette.muted,
                               fontSize: AppFontSize.bodyLarge,
                             ),
@@ -274,33 +312,45 @@ class _ProfileSheet extends StatelessWidget {
                       ),
                     ),
                     const Divider(height: 1),
-                    const _ProfileItem(
-                      title: 'ملفات التعريف الشخصية',
+                    _ProfileItem(
+                      title: context.tr(
+                        ar: 'ملفات التعريف الشخصية',
+                        en: 'Personal profiles',
+                      ),
                       icon: Icons.badge_outlined,
                     ),
                     const Divider(height: 1),
-                    const _ProfileItem(
-                      title: 'أضف شخص فعال',
+                    _ProfileItem(
+                      title: context.tr(
+                        ar: 'أضف شخصاً فعالاً',
+                        en: 'Add active person',
+                      ),
                       icon: Icons.add_circle_outline_rounded,
                     ),
                     const Divider(height: 1),
-                    const _ProfileItem(
-                      title: 'أصدقاؤك في الطب فريند',
+                    _ProfileItem(
+                      title: context.tr(
+                        ar: 'أصدقاؤك في DawaTime',
+                        en: 'Your DawaTime friends',
+                      ),
                       icon: Icons.group_outlined,
                     ),
                     const Divider(height: 1),
-                    const _ProfileItem(
-                      title: 'دعوة صديق طب فريند',
+                    _ProfileItem(
+                      title: context.tr(ar: 'دعوة صديق', en: 'Invite a friend'),
                       icon: Icons.person_add_alt_1_outlined,
                     ),
                     const Divider(height: 1),
-                    const _ProfileItem(
-                      title: 'رمز التحقق',
+                    _ProfileItem(
+                      title: context.tr(
+                        ar: 'رمز التحقق',
+                        en: 'Verification code',
+                      ),
                       icon: Icons.qr_code_rounded,
                     ),
                     const Divider(height: 1),
                     _ProfileItem(
-                      title: 'تسجيل الخروج',
+                      title: context.tr(ar: 'تسجيل الخروج', en: 'Sign out'),
                       icon: Icons.logout_rounded,
                       onTap: () {
                         onSignOut();
@@ -362,35 +412,56 @@ class _ProfileItem extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _ReminderTroubleshootPage extends StatelessWidget {
   const _ReminderTroubleshootPage();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('استكشاف وإصلاح أخطاء التذكير')),
+      appBar: AppBar(
+        title: Text(
+          context.tr(
+            ar: 'استكشاف وإصلاح أخطاء التذكير',
+            en: 'Troubleshoot reminders',
+          ),
+        ),
+      ),
       body: Container(
         color: const Color(0xFFF3F6FB),
         child: ListView(
           padding: AppSpacing.pagePadding,
-          children: const [
+          children: [
             _TroubleshootCard(
-              title: 'خطوة ١: استثني DawaTime من تنظيم البطارية',
-              description:
-                  'تحسين البطارية يقلل نشاطات التطبيقات عندما لا تكون فعالة، مما قد يؤثر على التذكيرات.',
+              title: context.tr(
+                ar: 'خطوة 1: استثنِ DawaTime من تحسين البطارية',
+                en: 'Step 1: Exclude DawaTime from battery optimization',
+              ),
+              description: context.tr(
+                ar: 'تحسين البطارية قد يقلل نشاط التطبيق في الخلفية، مما قد يؤثر على وصول التذكيرات.',
+                en: 'Battery optimization can reduce background activity and delay reminders.',
+              ),
             ),
-            SizedBox(height: AppSpacing.md),
+            const SizedBox(height: AppSpacing.md),
             _TroubleshootCard(
-              title: 'خطوة ٢: قم بضبط إعدادات بطارية مطورة',
-              description:
-                  'تأكد من حصولك على إشعارات في الوقت الصحيح بواسطة ضبط إعدادات البطارية.',
+              title: context.tr(
+                ar: 'خطوة 2: راجع إعدادات إشعارات الجهاز',
+                en: 'Step 2: Review device notification settings',
+              ),
+              description: context.tr(
+                ar: 'تأكد أن الإشعارات مسموحة للتطبيق وأن وضع عدم الإزعاج لا يمنع ظهور التنبيهات.',
+                en: 'Make sure notifications are allowed for the app and Do Not Disturb is not blocking alerts.',
+              ),
             ),
-            SizedBox(height: AppSpacing.lg),
+            const SizedBox(height: AppSpacing.lg),
             Center(
               child: Text(
-                'تحتاج لمزيد من\nاتصل بالدعم',
+                context.tr(
+                  ar: 'تحتاج لمزيد من المساعدة؟\nتواصل مع الدعم',
+                  en: 'Need more help?\nContact support',
+                ),
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppPalette.patientPrimary,
                   fontSize: AppFontSize.sectionTitle,
                   fontWeight: FontWeight.w800,
@@ -449,14 +520,19 @@ class _TroubleshootCard extends StatelessWidget {
           OutlinedButton(
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
+                SnackBar(
                   content: Text(
-                    'تمت إضافة هذه الخطوة كإجراء إرشادي داخل التطبيق.',
+                    context.tr(
+                      ar: 'تمت إضافة هذه الخطوة كإجراء إرشادي داخل التطبيق.',
+                      en: 'This step was added as an in-app guidance action.',
+                    ),
                   ),
                 ),
               );
             },
-            child: const Text('خذ هذا التصرف'),
+            child: Text(
+              context.tr(ar: 'خذ هذا التصرف', en: 'Take this action'),
+            ),
           ),
         ],
       ),
@@ -464,8 +540,9 @@ class _TroubleshootCard extends StatelessWidget {
   }
 }
 
-class _SimplePage extends StatelessWidget {
-  const _SimplePage({
+// ignore: unused_element
+class _InfoSimplePage extends StatelessWidget {
+  const _InfoSimplePage({
     required this.title,
     required this.description,
     required this.icon,
@@ -492,7 +569,7 @@ class _SimplePage extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(icon, size: 76, color: AppPalette.patientPrimary),
+                    Icon(icon, size: 56, color: AppPalette.patientPrimary),
                     const SizedBox(height: AppSpacing.md),
                     Text(
                       title,

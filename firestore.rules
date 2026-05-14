@@ -1,102 +1,507 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function hasUserProfile() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    function currentUserRole() {
-      return hasUserProfile()
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
-        : null;
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     function isBootstrapAdmin() {
       return isSignedIn()
-        && request.auth.token.email in ['hsab7164@gmail.com'];
+        && request.auth.token.email != null
+        && request.auth.token.email == "hsab7164@gmail.com";
+    }
+
+    function callerUserPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function callerUserExists() {
+      return isSignedIn() && exists(callerUserPath());
+    }
+
+    function callerUser() {
+      return get(callerUserPath());
     }
 
     function isAdmin() {
-      return isBootstrapAdmin() || currentUserRole() == 'admin';
+      return isBootstrapAdmin()
+        || (callerUserExists() && callerUser().data.role == "admin");
+    }
+
+    function isPatient() {
+      return callerUserExists() && callerUser().data.role == "patient";
+    }
+
+    function isApprovedPharmacist() {
+      return callerUserExists()
+        && callerUser().data.role == "pharmacist"
+        && callerUser().data.approvalStatus == "approved";
+    }
+
+    function validFrequency(value) {
+      return value is number && value >= 1 && value <= 24;
+    }
+
+    function validIntervalDays(value) {
+      return value is number && value >= 1 && value <= 365;
+    }
+
+    function validHour(value) {
+      return value is number && value >= 0 && value <= 23;
+    }
+
+    function validMinute(value) {
+      return value is number && value >= 0 && value <= 59;
+    }
+
+    function validHourMinuteForUpdate(hourValue, minuteValue) {
+      return (validHour(hourValue) && validMinute(minuteValue))
+        || (hourValue == null && minuteValue == null);
+    }
+
+    function userAllowedKeys() {
+      return [
+        "name",
+        "username",
+        "email",
+        "role",
+        "approvalStatus",
+        "authProvider",
+        "photoUrl",
+        "pharmacyName",
+        "pharmacyLocation",
+        "pharmacyPhone",
+        "approvedBy",
+        "approvedAt",
+        "createdAt"
+      ];
+    }
+
+    function medicationAllowedKeys() {
+      return [
+        "userId",
+        "name",
+        "dose",
+        "form",
+        "quantity",
+        "remainingQuantity",
+        "doseUnit",
+        "time",
+        "hour",
+        "minute",
+        "frequency",
+        "doseTimes",
+        "intervalDays",
+        "notificationIds",
+        "takenDoseLogs",
+        "skippedDoseLogs",
+        "isArchived",
+        "archivedAt",
+        "createdAt"
+      ];
+    }
+
+    function pharmacyAllowedKeys() {
+      return [
+        "pharmacistId",
+        "title",
+        "details",
+        "category",
+        "priority",
+        "quantity",
+        "minQuantity",
+        "unit",
+        "isOutOfStock",
+        "isCompleted",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function sharedMedicineAllowedKeys() {
+      return [
+        "pharmacistId",
+        "pharmacistEmail",
+        "pharmacistName",
+        "pharmacyName",
+        "name",
+        "description",
+        "usageInstructions",
+        "dosage",
+        "packageSize",
+        "price",
+        "location",
+        "pharmacyPhone",
+        "category",
+        "isAvailable",
+        "requiresPrescription",
+        "searchIndex",
+        "imageUrl",
+        "imageStoragePath",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function ratingAllowedKeys() {
+      return [
+        "pharmacistId",
+        "pharmacyName",
+        "patientId",
+        "patientName",
+        "rating",
+        "comment",
+        "createdAt",
+        "updatedAt"
+      ];
+    }
+
+    function passwordResetAllowedKeys() {
+      return [
+        "email",
+        "status",
+        "accessCode",
+        "handledBy",
+        "requestedAt",
+        "sentAt",
+        "emailSentAt",
+        "expiresAt",
+        "updatedAt"
+      ];
     }
 
     match /users/{userId} {
-      allow create: if isSignedIn()
-        && request.auth.uid == userId
+      allow read: if isOwner(userId) || isAdmin();
+
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasAll([
+          "name",
+          "username",
+          "email",
+          "role",
+          "approvalStatus",
+          "authProvider",
+          "createdAt"
+        ])
+        && request.resource.data.keys().hasOnly(userAllowedKeys())
         && request.resource.data.email == request.auth.token.email
         && (
           (
-            isBootstrapAdmin()
-            && request.resource.data.role == 'admin'
-            && request.resource.data.approvalStatus == 'approved'
-          ) ||
+            request.resource.data.role == "patient"
+            && request.resource.data.approvalStatus == "approved"
+          )
+          ||
           (
-            request.resource.data.role == 'patient'
-            && request.resource.data.approvalStatus == 'approved'
-          ) ||
+            request.resource.data.role == "pharmacist"
+            && request.resource.data.approvalStatus == "pending"
+          )
+          ||
           (
-            request.resource.data.role == 'pharmacist'
-            && request.resource.data.approvalStatus == 'pending'
+            request.resource.data.role == "admin"
+            && request.resource.data.approvalStatus == "approved"
+            && isBootstrapAdmin()
           )
         );
 
-      allow read: if isSignedIn()
-        && (request.auth.uid == userId || isAdmin());
-
-      allow update: if isAdmin()
-        || (
-          isSignedIn()
-          && request.auth.uid == userId
+      allow update: if
+        (
+          // owner edits normal profile fields only
+          isOwner(userId)
+          && request.resource.data.keys().hasOnly(userAllowedKeys())
+          && request.resource.data.email == resource.data.email
           && request.resource.data.role == resource.data.role
           && request.resource.data.approvalStatus == resource.data.approvalStatus
+          && request.resource.data.authProvider == resource.data.authProvider
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "name",
+            "username",
+            "photoUrl",
+            "pharmacyName",
+            "pharmacyLocation",
+            "pharmacyPhone"
+          ])
+        )
+        ||
+        (
+          // bootstrap admin self-heal (ensureAdminProfile)
+          isBootstrapAdmin()
+          && isOwner(userId)
+          && request.resource.data.keys().hasOnly(userAllowedKeys())
+          && request.resource.data.email == request.auth.token.email
+          && request.resource.data.role == "admin"
+          && request.resource.data.approvalStatus == "approved"
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "name",
+            "username",
+            "email",
+            "role",
+            "approvalStatus",
+            "authProvider",
+            "photoUrl",
+            "createdAt"
+          ])
+        )
+        ||
+        (
+          // admin approves/rejects pharmacists
+          isAdmin()
+          && resource.data.role == "pharmacist"
+          && request.resource.data.keys().hasOnly(userAllowedKeys())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "approvalStatus",
+            "approvedBy",
+            "approvedAt"
+          ])
+          && (
+            request.resource.data.approvalStatus == "approved"
+            || request.resource.data.approvalStatus == "rejected"
+          )
+          && request.resource.data.approvedBy == request.auth.uid
+          && request.resource.data.name == resource.data.name
+          && request.resource.data.username == resource.data.username
           && request.resource.data.email == resource.data.email
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.authProvider == resource.data.authProvider
+          && request.resource.data.photoUrl == resource.data.photoUrl
+          && request.resource.data.pharmacyName == resource.data.pharmacyName
+          && request.resource.data.pharmacyLocation == resource.data.pharmacyLocation
+          && request.resource.data.pharmacyPhone == resource.data.pharmacyPhone
+          && request.resource.data.createdAt == resource.data.createdAt
         );
 
-      allow delete: if isAdmin();
+      allow delete: if false;
     }
 
-    match /medications/{docId} {
+    match /medications/{medicationId} {
+      allow read: if isPatient() && resource.data.userId == request.auth.uid;
+
+      allow create: if isPatient()
+        && request.resource.data.keys().hasAll([
+          "userId",
+          "name",
+          "dose",
+          "form",
+          "quantity",
+          "remainingQuantity",
+          "doseUnit",
+          "time",
+          "hour",
+          "minute",
+          "frequency",
+          "doseTimes",
+          "intervalDays",
+          "notificationIds",
+          "isArchived",
+          "createdAt"
+        ])
+        && request.resource.data.keys().hasOnly(medicationAllowedKeys())
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.quantity is number
+        && request.resource.data.quantity >= 1
+        && request.resource.data.remainingQuantity is number
+        && request.resource.data.remainingQuantity >= 0
+        && request.resource.data.remainingQuantity <= request.resource.data.quantity
+        && request.resource.data.doseTimes is list
+        && request.resource.data.doseTimes.size() >= 1
+        && request.resource.data.doseTimes.size() <= 24
+        && request.resource.data.notificationIds is list
+        && validHour(request.resource.data.hour)
+        && validMinute(request.resource.data.minute)
+        && validFrequency(request.resource.data.frequency)
+        && validIntervalDays(request.resource.data.intervalDays);
+
+      allow update: if isPatient()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(medicationAllowedKeys())
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.quantity is number
+        && request.resource.data.quantity >= 1
+        && request.resource.data.remainingQuantity is number
+        && request.resource.data.remainingQuantity >= 0
+        && request.resource.data.remainingQuantity <= request.resource.data.quantity
+        && request.resource.data.doseTimes is list
+        && request.resource.data.doseTimes.size() >= 1
+        && request.resource.data.doseTimes.size() <= 24
+        && request.resource.data.notificationIds is list
+        && validHourMinuteForUpdate(
+          request.resource.data.hour,
+          request.resource.data.minute
+        )
+        && validFrequency(request.resource.data.frequency)
+        && validIntervalDays(request.resource.data.intervalDays);
+
+      allow delete: if isPatient() && resource.data.userId == request.auth.uid;
+    }
+
+    match /pharmacy/{itemId} {
+      allow read: if isApprovedPharmacist()
+        && resource.data.pharmacistId == request.auth.uid;
+
+      allow create: if isApprovedPharmacist()
+        && request.resource.data.keys().hasAll([
+          "pharmacistId",
+          "title",
+          "details",
+          "category",
+          "priority",
+          "quantity",
+          "minQuantity",
+          "unit",
+          "isOutOfStock",
+          "isCompleted",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.keys().hasOnly(pharmacyAllowedKeys())
+        && request.resource.data.pharmacistId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.details is string
+        && request.resource.data.category is string
+        && request.resource.data.priority is string
+        && request.resource.data.unit is string
+        && request.resource.data.quantity is number
+        && request.resource.data.quantity >= 0
+        && request.resource.data.minQuantity is number
+        && request.resource.data.minQuantity >= 0
+        && request.resource.data.isOutOfStock is bool
+        && request.resource.data.isCompleted is bool;
+
+      allow update: if isApprovedPharmacist()
+        && resource.data.pharmacistId == request.auth.uid
+        && request.resource.data.keys().hasOnly(pharmacyAllowedKeys())
+        && request.resource.data.pharmacistId == resource.data.pharmacistId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.title is string
+        && request.resource.data.details is string
+        && request.resource.data.category is string
+        && request.resource.data.priority is string
+        && request.resource.data.unit is string
+        && request.resource.data.quantity is number
+        && request.resource.data.quantity >= 0
+        && request.resource.data.minQuantity is number
+        && request.resource.data.minQuantity >= 0
+        && request.resource.data.isOutOfStock is bool
+        && request.resource.data.isCompleted is bool;
+
+      allow delete: if isApprovedPharmacist()
+        && resource.data.pharmacistId == request.auth.uid;
+    }
+
+    match /shared_medicines/{medicineId} {
+      allow read: if isSignedIn();
+
+      allow create: if isApprovedPharmacist()
+        && request.resource.data.pharmacistId == request.auth.uid
+        && request.resource.data.keys().hasAll([
+          "pharmacistId",
+          "pharmacistEmail",
+          "pharmacistName",
+          "pharmacyName",
+          "name",
+          "description",
+          "usageInstructions",
+          "dosage",
+          "packageSize",
+          "price",
+          "location",
+          "pharmacyPhone",
+          "category",
+          "isAvailable",
+          "requiresPrescription",
+          "searchIndex",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.keys().hasOnly(sharedMedicineAllowedKeys())
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0
+        && request.resource.data.searchIndex is list
+        && request.resource.data.searchIndex.size() >= 1;
+
+      allow update: if isApprovedPharmacist()
+        && resource.data.pharmacistId == request.auth.uid
+        && request.resource.data.keys().hasOnly(sharedMedicineAllowedKeys())
+        && request.resource.data.pharmacistId == resource.data.pharmacistId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0
+        && request.resource.data.searchIndex is list
+        && request.resource.data.searchIndex.size() >= 1;
+
+      allow delete: if isApprovedPharmacist()
+        && resource.data.pharmacistId == request.auth.uid;
+    }
+
+    match /pharmacy_ratings/{ratingId} {
+      allow read: if isSignedIn();
+
       allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid;
+        && request.resource.data.patientId == request.auth.uid
+        && request.resource.data.keys().hasOnly(ratingAllowedKeys())
+        && request.resource.data.pharmacistId is string
+        && request.resource.data.pharmacyName is string
+        && request.resource.data.patientName is string
+        && request.resource.data.comment is string
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
 
-      allow read: if isSignedIn()
-        && (
-          isAdmin()
-          || resource.data.userId == request.auth.uid
-        );
+      allow update: if isSignedIn()
+        && resource.data.patientId == request.auth.uid
+        && request.resource.data.keys().hasOnly(ratingAllowedKeys())
+        && request.resource.data.patientId == resource.data.patientId
+        && request.resource.data.pharmacistId == resource.data.pharmacistId
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string;
 
-      allow update, delete: if isSignedIn()
-        && (
-          isAdmin()
-          || resource.data.userId == request.auth.uid
-        );
+      allow delete: if false;
     }
 
-    match /pharmacy/{docId} {
-      allow create: if isSignedIn()
-        && currentUserRole() == 'pharmacist'
-        && request.resource.data.pharmacistId == request.auth.uid;
+    match /password_reset_requests/{requestId} {
+      allow create: if request.resource.data.keys().hasOnly(passwordResetAllowedKeys())
+        && request.resource.data.keys().hasAll([
+          "email",
+          "status",
+          "requestedAt",
+          "updatedAt"
+        ])
+        && request.resource.data.email is string
+        && request.resource.data.status == "pending";
 
-      allow read: if isSignedIn()
-        && (
+      allow read: if isAdmin();
+
+      allow update: if
+        (
           isAdmin()
-          || resource.data.pharmacistId == request.auth.uid
+          && request.resource.data.keys().hasOnly(passwordResetAllowedKeys())
+          && request.resource.data.email == resource.data.email
+          && (
+            request.resource.data.status == "code_sent"
+            || request.resource.data.status == "email_sent"
+            || request.resource.data.status == "pending"
+          )
+        )
+        ||
+        (
+          resource.data.status == "code_sent"
+          && request.resource.data.keys().hasOnly(passwordResetAllowedKeys())
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.status == "email_sent"
+          && request.resource.data.accessCode == resource.data.accessCode
+          && resource.data.expiresAt is timestamp
+          && request.time < resource.data.expiresAt
         );
 
-      allow update, delete: if isSignedIn()
-        && (
-          isAdmin()
-          || resource.data.pharmacistId == request.auth.uid
-        );
-    }
-
-    match /admin/{docId} {
-      allow read, write: if isAdmin();
+      allow delete: if false;
     }
   }
 }

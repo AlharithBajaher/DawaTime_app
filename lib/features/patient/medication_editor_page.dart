@@ -13,8 +13,8 @@ class MedicationEditorResult {
     required this.quantity,
     required this.doseUnit,
     required this.doseText,
-    required this.time,
-    required this.frequency,
+    required this.doseTimes,
+    required this.intervalDays,
   });
 
   final String name;
@@ -22,8 +22,8 @@ class MedicationEditorResult {
   final int quantity;
   final String doseUnit;
   final String doseText;
-  final TimeOfDay time;
-  final int frequency;
+  final List<MedicationDoseTime> doseTimes;
+  final int intervalDays;
 
   String get dose => doseText;
 }
@@ -41,22 +41,42 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _quantityController;
-  late TimeOfDay _time;
   late String _selectedForm;
   late String _doseUnit;
-  late int _frequency;
+  late int _dailyDoseCount;
+  late int _intervalDays;
+  late List<TimeOfDay> _doseTimes;
 
   final List<_FormChoice> _forms = const [
-    _FormChoice(id: 'tablet', icon: Icons.circle_outlined),
-    _FormChoice(id: 'capsule', icon: Icons.medication_outlined),
-    _FormChoice(id: 'liquid', icon: Icons.water_drop_outlined),
-    _FormChoice(id: 'injection', icon: Icons.vaccines_outlined),
+    _FormChoice(id: 'tablet', icon: Icons.medication_rounded),
+    _FormChoice(id: 'capsule', icon: Icons.science_rounded),
+    _FormChoice(id: 'syrup', icon: Icons.medication_liquid_rounded),
+    _FormChoice(id: 'drops', icon: Icons.water_drop_rounded),
+    _FormChoice(id: 'injection', icon: Icons.vaccines_rounded),
+    _FormChoice(id: 'inhaler', icon: Icons.air_rounded),
+    _FormChoice(id: 'ointment', icon: Icons.spa_rounded),
+    _FormChoice(id: 'powder', icon: Icons.blur_on_rounded),
+    _FormChoice(id: 'patch', icon: Icons.healing_rounded),
+    _FormChoice(id: 'spray', icon: Icons.shower_rounded),
+  ];
+
+  final List<int> _intervalOptions = const [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    10,
+    14,
+    21,
+    30,
   ];
 
   @override
   void initState() {
     super.initState();
-    final existingDate = widget.existing?.scheduledDateTime(DateTime.now());
     _nameController = TextEditingController(text: widget.existing?.name ?? '');
     _quantityController = TextEditingController(
       text: '${widget.existing?.quantity ?? 1}',
@@ -66,10 +86,14 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
       _selectedForm,
       preferred: widget.existing?.doseUnit,
     );
-    _frequency = widget.existing?.frequency ?? 1;
-    _time = existingDate == null
-        ? const TimeOfDay(hour: 14, minute: 8)
-        : TimeOfDay(hour: existingDate.hour, minute: existingDate.minute);
+    _dailyDoseCount = (widget.existing?.sortedDoseTimes.length ?? 1).clamp(
+      1,
+      6,
+    );
+    _intervalDays = _intervalOptions.contains(widget.existing?.intervalDays)
+        ? widget.existing!.intervalDays
+        : 1;
+    _doseTimes = _initialDoseTimes();
   }
 
   @override
@@ -82,11 +106,63 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
   String _tr({required String ar, required String en}) =>
       context.tr(ar: ar, en: en);
 
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _time);
-    if (picked != null) {
-      setState(() => _time = picked);
+  List<TimeOfDay> _initialDoseTimes() {
+    final existingTimes = widget.existing?.sortedDoseTimes
+        .map((item) => TimeOfDay(hour: item.hour, minute: item.minute))
+        .toList(growable: false);
+    if (existingTimes != null && existingTimes.isNotEmpty) {
+      return List<TimeOfDay>.generate(_dailyDoseCount, (index) {
+        return index < existingTimes.length
+            ? existingTimes[index]
+            : _suggestTimeForIndex(index, existingTimes.first);
+      });
     }
+
+    const baseTime = TimeOfDay(hour: 8, minute: 0);
+    return List<TimeOfDay>.generate(
+      _dailyDoseCount,
+      (index) => _suggestTimeForIndex(index, baseTime),
+    );
+  }
+
+  TimeOfDay _suggestTimeForIndex(int index, TimeOfDay baseTime) {
+    final totalMinutes =
+        (baseTime.hour * 60 + baseTime.minute + index * 360) % 1440;
+    return TimeOfDay(hour: totalMinutes ~/ 60, minute: totalMinutes % 60);
+  }
+
+  void _syncDoseTimeCount(int count) {
+    setState(() {
+      _dailyDoseCount = count;
+      if (_doseTimes.length > count) {
+        _doseTimes = _doseTimes.take(count).toList(growable: false);
+        return;
+      }
+
+      while (_doseTimes.length < count) {
+        final baseTime = _doseTimes.isEmpty
+            ? const TimeOfDay(hour: 8, minute: 0)
+            : _doseTimes.first;
+        _doseTimes = [
+          ..._doseTimes,
+          _suggestTimeForIndex(_doseTimes.length, baseTime),
+        ];
+      }
+    });
+  }
+
+  Future<void> _pickDoseTime(int index) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _doseTimes[index],
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _doseTimes = List<TimeOfDay>.from(_doseTimes)..[index] = picked;
+    });
   }
 
   void _submit() {
@@ -94,16 +170,27 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
       return;
     }
 
+    final quantity = int.tryParse(_quantityController.text.trim()) ?? 1;
+    final doseTimes =
+        _doseTimes
+            .map(
+              (doseTime) => MedicationDoseTime(
+                hour: doseTime.hour,
+                minute: doseTime.minute,
+              ),
+            )
+            .toList(growable: false)
+          ..sort((a, b) => a.sortValue.compareTo(b.sortValue));
+
     Navigator.of(context).pop(
       MedicationEditorResult(
         name: _nameController.text.trim(),
         form: _selectedForm,
-        quantity: int.tryParse(_quantityController.text.trim()) ?? 1,
+        quantity: quantity,
         doseUnit: _doseUnit,
-        doseText:
-            '${int.tryParse(_quantityController.text.trim()) ?? 1} ${_doseUnitLabel(_doseUnit)}',
-        time: _time,
-        frequency: _frequency,
+        doseText: '$quantity ${_doseUnitLabel(_doseUnit)}',
+        doseTimes: doseTimes,
+        intervalDays: _intervalDays,
       ),
     );
   }
@@ -114,22 +201,18 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
     final selectedDoseUnit = doseUnits.contains(_doseUnit)
         ? _doseUnit
         : doseUnits.first;
-    final frequencyItems = <int, String>{
-      1: _tr(ar: 'مرة يومياً', en: '1 time daily'),
-      2: _tr(ar: 'مرتان يومياً', en: '2 times daily'),
-      3: _tr(ar: '3 مرات يومياً', en: '3 times daily'),
-      4: _tr(ar: '4 مرات يومياً', en: '4 times daily'),
-    };
 
     return Scaffold(
       appBar: AppBar(
         title: Text(
           widget.existing == null
-              ? _tr(ar: 'إضافة دواء', en: 'Add Medication')
-              : _tr(ar: 'تعديل الدواء', en: 'Edit Medication'),
+              ? _tr(ar: 'إضافة دواء', en: 'Add medicine')
+              : _tr(ar: 'تعديل الدواء', en: 'Edit medicine'),
         ),
       ),
-      body: Container(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
         color: const Color(0xFFF3F6FB),
         child: SafeArea(
           child: Center(
@@ -144,21 +227,16 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            _tr(ar: 'اسم الدواء', en: "Pill's Name"),
-                            style: const TextStyle(
-                              fontSize: AppFontSize.title,
-                              fontWeight: FontWeight.w800,
-                              color: AppPalette.text,
-                            ),
+                          _SectionTitle(
+                            title: _tr(ar: 'اسم الدواء', en: 'Medicine name'),
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           TextFormField(
                             controller: _nameController,
                             decoration: InputDecoration(
                               hintText: _tr(
-                                ar: 'اسم الدواء',
-                                en: 'Medicine Name',
+                                ar: 'اكتب اسم الدواء',
+                                en: 'Enter medicine name',
                               ),
                             ),
                             validator: (value) {
@@ -172,17 +250,12 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
                             },
                           ),
                           const SizedBox(height: AppSpacing.lg),
-                          Text(
-                            _tr(ar: 'شكل الدواء', en: 'Medicine Form'),
-                            style: const TextStyle(
-                              fontSize: AppFontSize.title,
-                              fontWeight: FontWeight.w800,
-                              color: AppPalette.text,
-                            ),
+                          _SectionTitle(
+                            title: _tr(ar: 'شكل الدواء', en: 'Medicine form'),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           SizedBox(
-                            height: 110,
+                            height: 108,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: _forms.length,
@@ -190,11 +263,10 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
                                   const SizedBox(width: AppSpacing.sm),
                               itemBuilder: (context, index) {
                                 final choice = _forms[index];
-                                final isSelected = _selectedForm == choice.id;
                                 return _FormCard(
                                   icon: choice.icon,
                                   label: _formLabel(choice.id),
-                                  selected: isSelected,
+                                  selected: _selectedForm == choice.id,
                                   onTap: () {
                                     setState(() {
                                       _selectedForm = choice.id;
@@ -218,7 +290,7 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
                                   decoration: InputDecoration(
                                     labelText: _tr(
                                       ar: 'الكمية',
-                                      en: 'Pills Quantity',
+                                      en: 'Stock quantity',
                                     ),
                                   ),
                                   validator: (value) {
@@ -238,7 +310,10 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
                                 child: DropdownButtonFormField<String>(
                                   initialValue: selectedDoseUnit,
                                   decoration: InputDecoration(
-                                    labelText: _tr(ar: 'الجرعة', en: 'Dose'),
+                                    labelText: _tr(
+                                      ar: 'وحدة الجرعة',
+                                      en: 'Dose unit',
+                                    ),
                                   ),
                                   items: doseUnits
                                       .map(
@@ -258,91 +333,135 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
                             ],
                           ),
                           const SizedBox(height: AppSpacing.lg),
-                          DropdownButtonFormField<int>(
-                            initialValue: _frequency,
-                            decoration: InputDecoration(
-                              labelText: _tr(
-                                ar: 'التكرار اليومي',
-                                en: 'Set Frequency',
-                              ),
-                            ),
-                            items: frequencyItems.entries
-                                .map(
-                                  (entry) => DropdownMenuItem(
-                                    value: entry.key,
-                                    child: Text(entry.value),
-                                  ),
-                                )
-                                .toList(growable: false),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() => _frequency = value);
-                              }
-                            },
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          Text(
-                            _tr(ar: 'وقت التذكير', en: 'Schedule Time'),
-                            style: const TextStyle(
-                              fontSize: AppFontSize.title,
-                              fontWeight: FontWeight.w800,
-                              color: AppPalette.text,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
                           Row(
                             children: [
                               Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.md,
-                                    vertical: AppSpacing.md,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadius.lg,
-                                    ),
-                                    border: Border.all(
-                                      color: const Color(0xFFDCE4F4),
+                                child: DropdownButtonFormField<int>(
+                                  initialValue: _dailyDoseCount,
+                                  decoration: InputDecoration(
+                                    labelText: _tr(
+                                      ar: 'عدد الجرعات اليومية',
+                                      en: 'Daily doses',
                                     ),
                                   ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.watch_later_outlined,
-                                        color: AppPalette.muted,
-                                      ),
-                                      const SizedBox(width: AppSpacing.sm),
-                                      Text(
-                                        _time.format(context),
-                                        style: const TextStyle(
-                                          fontSize: AppFontSize.bodyLarge,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  items:
+                                      List<int>.generate(
+                                            6,
+                                            (index) => index + 1,
+                                          )
+                                          .map(
+                                            (value) => DropdownMenuItem(
+                                              value: value,
+                                              child: Text(
+                                                _tr(
+                                                  ar: '$value مرة يومياً',
+                                                  en: '$value time(s) daily',
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                          .toList(growable: false),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      _syncDoseTimeCount(value);
+                                    }
+                                  },
                                 ),
                               ),
                               const SizedBox(width: AppSpacing.sm),
-                              SizedBox(
-                                width: 56,
-                                height: 56,
-                                child: ElevatedButton(
-                                  onPressed: _pickTime,
-                                  style: ElevatedButton.styleFrom(
-                                    padding: EdgeInsets.zero,
+                              Expanded(
+                                child: DropdownButtonFormField<int>(
+                                  initialValue: _intervalDays,
+                                  decoration: InputDecoration(
+                                    labelText: _tr(
+                                      ar: 'يتكرر كل',
+                                      en: 'Repeats every',
+                                    ),
                                   ),
-                                  child: const Icon(Icons.add_rounded),
+                                  items: _intervalOptions
+                                      .map(
+                                        (value) => DropdownMenuItem(
+                                          value: value,
+                                          child: Text(
+                                            value == 1
+                                                ? _tr(
+                                                    ar: 'كل يوم',
+                                                    en: 'Every day',
+                                                  )
+                                                : _tr(
+                                                    ar: 'كل $value أيام',
+                                                    en: 'Every $value days',
+                                                  ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(growable: false),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() => _intervalDays = value);
+                                    }
+                                  },
                                 ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: AppSpacing.lg),
+                          _SectionTitle(
+                            title: _tr(ar: 'أوقات الجرعات', en: 'Dose times'),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 260),
+                            child: Column(
+                              key: ValueKey(_doseTimes.length),
+                              children: List.generate(_doseTimes.length, (
+                                index,
+                              ) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppSpacing.sm,
+                                  ),
+                                  child: _DoseTimeTile(
+                                    index: index,
+                                    timeLabel: _doseTimes[index].format(
+                                      context,
+                                    ),
+                                    onTap: () => _pickDoseTime(index),
+                                  ),
+                                );
+                              }),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            decoration: BoxDecoration(
+                              color: AppPalette.patientPrimary.withValues(
+                                alpha: 0.08,
+                              ),
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
+                            ),
+                            child: Text(
+                              _tr(
+                                ar: 'سيتم تذكيرك ${_doseTimes.length} مرة، ${_intervalDays == 1 ? 'كل يوم' : 'كل $_intervalDays أيام'}.',
+                                en: 'You will be reminded ${_doseTimes.length} time(s), ${_intervalDays == 1 ? 'every day' : 'every $_intervalDays days'}.',
+                              ),
+                              style: const TextStyle(
+                                color: AppPalette.text,
+                                fontSize: AppFontSize.body,
+                                fontWeight: FontWeight.w700,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
                           const SizedBox(height: AppSpacing.xl),
-                          ElevatedButton(
+                          ElevatedButton.icon(
                             onPressed: _submit,
-                            child: Text(_tr(ar: 'تم', en: 'Done')),
+                            icon: const Icon(Icons.check_rounded, size: 18),
+                            label: Text(
+                              _tr(ar: 'حفظ الدواء', en: 'Save medicine'),
+                            ),
                           ),
                         ],
                       ),
@@ -361,10 +480,22 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
     switch (id) {
       case 'capsule':
         return _tr(ar: 'كبسولة', en: 'Capsule');
-      case 'liquid':
-        return _tr(ar: 'سائل', en: 'Liquid');
+      case 'syrup':
+        return _tr(ar: 'شراب', en: 'Syrup');
+      case 'drops':
+        return _tr(ar: 'قطرات', en: 'Drops');
       case 'injection':
         return _tr(ar: 'حقنة', en: 'Injection');
+      case 'inhaler':
+        return _tr(ar: 'بخاخ تنفس', en: 'Inhaler');
+      case 'ointment':
+        return _tr(ar: 'مرهم', en: 'Ointment');
+      case 'powder':
+        return _tr(ar: 'بودرة', en: 'Powder');
+      case 'patch':
+        return _tr(ar: 'لاصقة', en: 'Patch');
+      case 'spray':
+        return _tr(ar: 'رذاذ', en: 'Spray');
       default:
         return _tr(ar: 'قرص', en: 'Tablet');
     }
@@ -375,9 +506,22 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
       case 'capsule':
         return 'capsule';
       case 'liquid':
-        return 'liquid';
+      case 'syrup':
+        return 'syrup';
+      case 'drops':
+        return 'drops';
       case 'injection':
         return 'injection';
+      case 'inhaler':
+        return 'inhaler';
+      case 'ointment':
+        return 'ointment';
+      case 'powder':
+        return 'powder';
+      case 'patch':
+        return 'patch';
+      case 'spray':
+        return 'spray';
       default:
         return 'tablet';
     }
@@ -387,10 +531,20 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
     switch (form) {
       case 'capsule':
         return const ['capsule', 'mg'];
-      case 'liquid':
-        return const ['ml', 'mg'];
+      case 'syrup':
+      case 'drops':
+      case 'spray':
+        return const ['ml', 'drop', 'puff', 'mg'];
       case 'injection':
-        return const ['mg', 'ml'];
+        return const ['ml', 'mg', 'iu'];
+      case 'inhaler':
+        return const ['puff', 'mg'];
+      case 'ointment':
+        return const ['g', 'mg'];
+      case 'powder':
+        return const ['g', 'sachet', 'mg'];
+      case 'patch':
+        return const ['patch', 'mg'];
       default:
         return const ['tablet', 'mg'];
     }
@@ -399,10 +553,7 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
   String _resolvedDoseUnitForForm(String form, {String? preferred}) {
     final allowedUnits = _doseUnitsForForm(form);
     final normalized = _normalizeDoseUnit(preferred);
-    if (allowedUnits.contains(normalized)) {
-      return normalized;
-    }
-    return allowedUnits.first;
+    return allowedUnits.contains(normalized) ? normalized : allowedUnits.first;
   }
 
   String _normalizeDoseUnit(String? value) {
@@ -422,6 +573,24 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
       case 'mg':
       case 'مجم':
         return 'mg';
+      case 'drop':
+      case 'drops':
+      case 'قطرة':
+        return 'drop';
+      case 'puff':
+      case 'بخة':
+        return 'puff';
+      case 'g':
+      case 'جم':
+        return 'g';
+      case 'patch':
+      case 'لاصقة':
+        return 'patch';
+      case 'sachet':
+      case 'كيس':
+        return 'sachet';
+      case 'iu':
+        return 'iu';
       default:
         return '';
     }
@@ -435,9 +604,116 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
         return _tr(ar: 'مل', en: 'ml');
       case 'mg':
         return _tr(ar: 'مجم', en: 'mg');
+      case 'drop':
+        return _tr(ar: 'قطرة', en: 'Drop');
+      case 'puff':
+        return _tr(ar: 'بخة', en: 'Puff');
+      case 'g':
+        return _tr(ar: 'جم', en: 'g');
+      case 'patch':
+        return _tr(ar: 'لاصقة', en: 'Patch');
+      case 'sachet':
+        return _tr(ar: 'كيس', en: 'Sachet');
+      case 'iu':
+        return 'IU';
       default:
         return _tr(ar: 'قرص', en: 'Tablet');
     }
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: AppFontSize.title,
+        fontWeight: FontWeight.w900,
+        color: AppPalette.text,
+      ),
+    );
+  }
+}
+
+class _DoseTimeTile extends StatelessWidget {
+  const _DoseTimeTile({
+    required this.index,
+    required this.timeLabel,
+    required this.onTap,
+  });
+
+  final int index;
+  final String timeLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: const Color(0xFFDCE4F4)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppPalette.patientPrimary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: const Icon(
+                Icons.schedule_rounded,
+                color: AppPalette.patientPrimary,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.tr(
+                      ar: 'وقت الجرعة ${index + 1}',
+                      en: 'Dose ${index + 1} time',
+                    ),
+                    style: const TextStyle(
+                      color: AppPalette.muted,
+                      fontSize: AppFontSize.caption,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    timeLabel,
+                    style: const TextStyle(
+                      color: AppPalette.text,
+                      fontSize: AppFontSize.title,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.edit_calendar_rounded,
+              color: AppPalette.patientPrimary,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -467,8 +743,9 @@ class _FormCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadius.lg),
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: 96,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        width: 94,
         padding: const EdgeInsets.all(AppSpacing.md),
         decoration: BoxDecoration(
           color: selected ? AppPalette.patientPrimary : Colors.white,
@@ -497,6 +774,8 @@ class _FormCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             Text(
               label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: selected ? Colors.white : AppPalette.text,

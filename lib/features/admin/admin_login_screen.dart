@@ -48,7 +48,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop();
+      Navigator.of(context).popUntil((route) => route.isFirst);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

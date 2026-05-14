@@ -11,6 +11,7 @@ void main() {
       dose: '1 capsule',
       form: 'capsule',
       quantity: 1,
+      remainingQuantity: 1,
       doseUnit: 'capsule',
       time: '9:05 AM',
       hour: 9,
