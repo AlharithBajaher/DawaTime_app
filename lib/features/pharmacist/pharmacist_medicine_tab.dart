@@ -1,5 +1,6 @@
-﻿part of 'pharmacist_home.dart';
+part of 'pharmacist_home.dart';
 
+// تبويب الأدوية المنشورة من الصيدلي لعرضها وإدارتها بسرعة.
 class _PharmacistMedicineTab extends StatelessWidget {
   const _PharmacistMedicineTab({
     required this.medicines,
@@ -27,12 +28,7 @@ class _PharmacistMedicineTab extends StatelessWidget {
         .length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.xs,
-        AppSpacing.lg,
-        120,
-      ),
+      padding: _pharmacistPagePadding,
       children: [
         DepthCard(
           gradient: const LinearGradient(
@@ -307,7 +303,7 @@ class _PublishedMedicineCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                    context.tr(
+                  context.tr(
                     ar: 'الاستخدام: ${medicine.usageInstructions}',
                     en: 'Usage: ${medicine.usageInstructions}',
                   ),
@@ -419,6 +415,7 @@ class _ModernPublishedMedicineCard extends StatelessWidget {
     required this.onDelete,
   });
 
+  // بيانات الدواء + الإجراءات (تعديل/حذف/تغيير حالة الإتاحة).
   final SharedMedicineModel medicine;
   final VoidCallback onEdit;
   final ValueChanged<bool> onToggleAvailability;
@@ -628,4 +625,3 @@ class _ModernPublishedMedicineCard extends StatelessWidget {
     );
   }
 }
-

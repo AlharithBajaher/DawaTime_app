@@ -24,10 +24,14 @@ class NotificationService {
   static const int reminderPlanningWindowDays = 14;
   static const int _maxSchedulesPerMedication = 120;
   static const int _lowStockLeadDays = 2;
-  static const String _channelId = 'dawatime_medication_reminders_v7';
-  static const String _channelName = 'DawaTime medication reminders';
-  static const String _channelDescription =
+  static const String _doseChannelId = 'dawatime_dose_reminders_v8';
+  static const String _doseChannelName = 'DawaTime dose reminders';
+  static const String _doseChannelDescription =
       'Precise local dose reminders with actions, snooze, and lock-screen visibility.';
+  static const String _stockChannelId = 'dawatime_stock_alerts_v2';
+  static const String _stockChannelName = 'DawaTime stock alerts';
+  static const String _stockChannelDescription =
+      'Low-stock reminders for medicines and pharmacy inventory.';
   static const String _androidReminderSound = 'dawatime_reminder';
   static const String _actionTaken = 'dose_taken';
   static const String _actionSkip = 'dose_skip';
@@ -68,14 +72,27 @@ class NotificationService {
         >();
     await androidImplementation?.createNotificationChannel(
       const AndroidNotificationChannel(
-        _channelId,
-        _channelName,
-        description: _channelDescription,
+        _doseChannelId,
+        _doseChannelName,
+        description: _doseChannelDescription,
         importance: Importance.max,
         playSound: true,
         sound: RawResourceAndroidNotificationSound(_androidReminderSound),
         enableVibration: true,
         audioAttributesUsage: AudioAttributesUsage.alarm,
+        showBadge: true,
+      ),
+    );
+    await androidImplementation?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _stockChannelId,
+        _stockChannelName,
+        description: _stockChannelDescription,
+        importance: Importance.high,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound(_androidReminderSound),
+        enableVibration: true,
+        audioAttributesUsage: AudioAttributesUsage.notification,
         showBadge: true,
       ),
     );
@@ -282,9 +299,11 @@ class NotificationService {
     await _configureLocalTimeZone();
 
     final now = DateTime.now().toLocal();
-    final safeReminderAt = reminderAt.isAfter(now)
-        ? reminderAt
-        : now.add(const Duration(minutes: 1));
+    DateTime safeReminderAt = reminderAt;
+    if (!safeReminderAt.isAfter(now)) {
+      final tomorrow = now.add(const Duration(days: 1));
+      safeReminderAt = DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
+    }
 
     await _scheduleReminderSafely(
       id: id,
@@ -367,9 +386,9 @@ class NotificationService {
   static NotificationDetails _notificationDetails() {
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        _channelId,
-        _channelName,
-        channelDescription: _channelDescription,
+        _doseChannelId,
+        _doseChannelName,
+        channelDescription: _doseChannelDescription,
         icon: '@mipmap/ic_launcher',
         importance: Importance.max,
         priority: Priority.high,
@@ -431,9 +450,9 @@ class NotificationService {
   static NotificationDetails _lowStockNotificationDetails() {
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        _channelId,
-        _channelName,
-        channelDescription: _channelDescription,
+        _stockChannelId,
+        _stockChannelName,
+        channelDescription: _stockChannelDescription,
         icon: '@mipmap/ic_launcher',
         importance: Importance.high,
         priority: Priority.high,
@@ -549,8 +568,8 @@ class NotificationService {
     }
 
     try {
-      final canExact =
-          await androidImplementation.canScheduleExactNotifications();
+      final canExact = await androidImplementation
+          .canScheduleExactNotifications();
       if (canExact == false) {
         await androidImplementation.requestExactAlarmsPermission();
       }
@@ -616,145 +635,84 @@ class NotificationService {
     final medicationRef = firestore
         .collection('medications')
         .doc(payload.medicationId);
+    final snapshot = await medicationRef.get(
+      const GetOptions(source: Source.serverAndCache),
+    );
+    if (!snapshot.exists) {
+      return;
+    }
+    final data = snapshot.data() ?? const <String, dynamic>{};
+    final ownerId = data['userId'] as String? ?? '';
+    if (ownerId != FirebaseAuth.instance.currentUser?.uid) {
+      return;
+    }
+
+    final notificationIds =
+        (data['notificationIds'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<num>()
+            .map((value) => value.toInt())
+            .toList(growable: false);
+    final currentRemaining =
+        (data['remainingQuantity'] as num?)?.toInt() ??
+        (data['quantity'] as num?)?.toInt() ??
+        0;
+
     _DoseStatusResult result;
-    try {
-      result = await firestore.runTransaction<_DoseStatusResult>((
-        transaction,
-      ) async {
-        final snapshot = await transaction.get(medicationRef);
-        if (!snapshot.exists) {
-          return const _DoseStatusResult(updated: false);
-        }
-
-        final rawData = snapshot.data() ?? const <String, dynamic>{};
-        final data = Map<String, dynamic>.from(rawData);
-        final ownerId = data['userId'] as String? ?? '';
-        if (ownerId != FirebaseAuth.instance.currentUser?.uid) {
-          return const _DoseStatusResult(updated: false);
-        }
-
-        final notificationIds =
-            (data['notificationIds'] as List<dynamic>? ?? const <dynamic>[])
-                .whereType<num>()
-                .map((value) => value.toInt())
-                .toList(growable: false);
-        final currentRemaining =
-            (data['remainingQuantity'] as num?)?.toInt() ??
-            (data['quantity'] as num?)?.toInt() ??
-            0;
-
-        if (markAsTaken) {
-          final takenLogs = Map<String, dynamic>.from(
-            data['takenDoseLogs'] as Map<String, dynamic>? ??
-                const <String, dynamic>{},
-          );
-          if (takenLogs.containsKey(key)) {
-            return _DoseStatusResult(
-              notificationIds: notificationIds,
-              remainingQuantity: currentRemaining,
-              medicationData: data,
-              updated: false,
-            );
-          }
-
-          final nextRemaining = (currentRemaining - 1).clamp(0, 1000000).toInt();
-          final shouldArchive = nextRemaining <= 0;
-          transaction.set(medicationRef, {
-            'takenDoseLogs.$key': Timestamp.fromDate(now),
-            'skippedDoseLogs.$key': FieldValue.delete(),
-            'remainingQuantity': shouldArchive ? 0 : nextRemaining,
-            'isArchived': shouldArchive,
-            'archivedAt': shouldArchive ? Timestamp.fromDate(now) : null,
-          }, SetOptions(merge: true));
-
-          return _DoseStatusResult(
-            archivedMedication: shouldArchive,
-            notificationIds: notificationIds,
-            remainingQuantity: shouldArchive ? 0 : nextRemaining,
-            medicationData: Map<String, dynamic>.from(data)
-              ..['remainingQuantity'] = shouldArchive ? 0 : nextRemaining,
-            updated: true,
-          );
-        }
-
-        transaction.set(medicationRef, {
-          'skippedDoseLogs.$key': Timestamp.fromDate(now),
-          'takenDoseLogs.$key': FieldValue.delete(),
-        }, SetOptions(merge: true));
-
-        return _DoseStatusResult(
-          notificationIds: notificationIds,
-          remainingQuantity: currentRemaining,
-          medicationData: data,
-          updated: true,
-        );
-      });
-    } catch (_) {
-      final snapshot = await medicationRef.get(
-        const GetOptions(source: Source.serverAndCache),
+    if (markAsTaken) {
+      final takenLogs = Map<String, dynamic>.from(
+        data['takenDoseLogs'] as Map<String, dynamic>? ??
+            const <String, dynamic>{},
       );
-      if (!snapshot.exists) {
-        return;
-      }
-      final data = snapshot.data() ?? const <String, dynamic>{};
-      final ownerId = data['userId'] as String? ?? '';
-      if (ownerId != FirebaseAuth.instance.currentUser?.uid) {
-        return;
-      }
-
-      final notificationIds =
-          (data['notificationIds'] as List<dynamic>? ?? const <dynamic>[])
-              .whereType<num>()
-              .map((value) => value.toInt())
-              .toList(growable: false);
-      final currentRemaining =
-          (data['remainingQuantity'] as num?)?.toInt() ??
-          (data['quantity'] as num?)?.toInt() ??
-          0;
-
-      if (markAsTaken) {
-        final takenLogs = Map<String, dynamic>.from(
-          data['takenDoseLogs'] as Map<String, dynamic>? ??
-              const <String, dynamic>{},
-        );
-        if (takenLogs.containsKey(key)) {
-          result = _DoseStatusResult(
-            notificationIds: notificationIds,
-            remainingQuantity: currentRemaining,
-            medicationData: data,
-            updated: false,
-          );
-        } else {
-          final nextRemaining = (currentRemaining - 1).clamp(0, 1000000).toInt();
-          final shouldArchive = nextRemaining <= 0;
-          await medicationRef.set({
-            'takenDoseLogs.$key': Timestamp.fromDate(now),
-            'skippedDoseLogs.$key': FieldValue.delete(),
-            'remainingQuantity': shouldArchive ? 0 : nextRemaining,
-            'isArchived': shouldArchive,
-            'archivedAt': shouldArchive ? Timestamp.fromDate(now) : null,
-          }, SetOptions(merge: true));
-          result = _DoseStatusResult(
-            archivedMedication: shouldArchive,
-            notificationIds: notificationIds,
-            remainingQuantity: shouldArchive ? 0 : nextRemaining,
-            medicationData: Map<String, dynamic>.from(data)
-              ..['remainingQuantity'] = shouldArchive ? 0 : nextRemaining,
-            updated: true,
-          );
-        }
-      } else {
-        await medicationRef.set({
-          'skippedDoseLogs.$key': Timestamp.fromDate(now),
-          'takenDoseLogs.$key': FieldValue.delete(),
-        }, SetOptions(merge: true));
+      if (takenLogs.containsKey(key)) {
         result = _DoseStatusResult(
           notificationIds: notificationIds,
           remainingQuantity: currentRemaining,
           medicationData: data,
+          updated: false,
+        );
+      } else {
+        final nextRemaining = (currentRemaining - 1).clamp(0, 1000000).toInt();
+        final shouldArchive = nextRemaining <= 0;
+        final nextTakenLogs = Map<String, dynamic>.from(takenLogs)
+          ..[key] = Timestamp.fromDate(now);
+        final nextSkippedLogs = Map<String, dynamic>.from(
+          data['skippedDoseLogs'] as Map<String, dynamic>? ??
+              const <String, dynamic>{},
+        )..remove(key);
+        await medicationRef.set({
+          'takenDoseLogs': nextTakenLogs,
+          'skippedDoseLogs': nextSkippedLogs,
+          'remainingQuantity': shouldArchive ? 0 : nextRemaining,
+          'isArchived': shouldArchive,
+          'archivedAt': shouldArchive ? Timestamp.fromDate(now) : null,
+        }, SetOptions(merge: true));
+        result = _DoseStatusResult(
+          archivedMedication: shouldArchive,
+          notificationIds: notificationIds,
+          remainingQuantity: shouldArchive ? 0 : nextRemaining,
+          medicationData: Map<String, dynamic>.from(data)
+            ..['remainingQuantity'] = shouldArchive ? 0 : nextRemaining,
           updated: true,
         );
       }
+    } else {
+      final nextSkippedLogs = Map<String, dynamic>.from(
+        data['skippedDoseLogs'] as Map<String, dynamic>? ??
+            const <String, dynamic>{},
+      )..[key] = Timestamp.fromDate(now);
+      final nextTakenLogs = Map<String, dynamic>.from(
+        data['takenDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
+      )..remove(key);
+      await medicationRef.set({
+        'skippedDoseLogs': nextSkippedLogs,
+        'takenDoseLogs': nextTakenLogs,
+      }, SetOptions(merge: true));
+      result = _DoseStatusResult(
+        notificationIds: notificationIds,
+        remainingQuantity: currentRemaining,
+        medicationData: data,
+        updated: true,
+      );
     }
 
     if (result.archivedMedication) {
@@ -840,8 +798,9 @@ class NotificationService {
       0,
     );
 
-    if (reminderAt.isBefore(now.add(const Duration(minutes: 1)))) {
-      return now.add(const Duration(minutes: 1));
+    if (!reminderAt.isAfter(now)) {
+      final tomorrow = now.add(const Duration(days: 1));
+      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
     }
     return reminderAt;
   }

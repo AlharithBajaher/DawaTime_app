@@ -21,6 +21,15 @@ import 'pharmacist_medicine_editor_page.dart';
 part 'pharmacist_home_sections.dart';
 part 'pharmacist_home_editor.dart';
 part 'pharmacist_medicine_tab.dart';
+part 'pharmacist_inventory_tab.dart';
+
+// حشوة موحدة لصفحات الصيدلي لضمان شكل متناسق في كل التبويبات.
+const EdgeInsets _pharmacistPagePadding = EdgeInsets.fromLTRB(
+  AppSpacing.lg,
+  AppSpacing.xs,
+  AppSpacing.lg,
+  120,
+);
 
 class PharmacistHome extends StatefulWidget {
   const PharmacistHome({super.key});
@@ -30,17 +39,20 @@ class PharmacistHome extends StatefulWidget {
 }
 
 class _PharmacistHomeState extends State<PharmacistHome> {
+  // خدمات التطبيق المستخدمة في صفحة الصيدلي.
   final AuthService _authService = AuthService();
   final PharmacyService _pharmacyService = PharmacyService();
   final SharedMedicineService _sharedMedicineService = SharedMedicineService();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // حالات الواجهة الحالية (التبويب، الحفظ، وإظهار بانر الترحيب).
   int _selectedIndex = 0;
   bool _isSaving = false;
   bool _hasWelcomedUser = false;
   bool _welcomeBannerVisible = false;
   String _welcomeDisplayName = '';
 
+  // متابعة ملف المستخدم الحالي بشكل مباشر من قاعدة البيانات.
   Stream<AppUserModel?> _watchCurrentProfile() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -50,6 +62,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     return _authService.watchUserProfile(uid);
   }
 
+  // استخراج اسم احتياطي من البريد إذا كان الاسم غير متوفر.
   String _fallbackPharmacistName(BuildContext context) {
     final email = FirebaseAuth.instance.currentUser?.email ?? '';
     final fallback = email
@@ -62,6 +75,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         : fallback;
   }
 
+  // تفعيل بانر الترحيب مرة واحدة عند أول فتح للواجهة.
   void _syncWelcomeBanner(String displayName) {
     if (_hasWelcomedUser) {
       return;
@@ -86,6 +100,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     });
   }
 
+  // فتح نافذة إضافة/تعديل عنصر مخزون.
   Future<void> _openTaskEditor([PharmacyTaskModel? task]) async {
     final draft = await showModalBottomSheet<_TaskDraft>(
       context: context,
@@ -130,7 +145,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         SnackBar(
           content: Text(
             context.tr(
-              ar: 'تعذر حفظ عنصر المخزون: $error', en: 'Unable to save inventory item: $error',
+              ar: 'تعذر حفظ عنصر المخزون: $error',
+              en: 'Unable to save inventory item: $error',
             ),
           ),
         ),
@@ -153,7 +169,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         SnackBar(
           content: Text(
             context.tr(
-              ar: 'تعذر حذف عنصر المخزون: $error', en: 'Unable to delete inventory item: $error',
+              ar: 'تعذر حذف عنصر المخزون: $error',
+              en: 'Unable to delete inventory item: $error',
             ),
           ),
         ),
@@ -187,7 +204,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         SnackBar(
           content: Text(
             context.tr(
-              ar: 'تعذر تحديث حالة التوفر: $error', en: 'Unable to update availability: $error',
+              ar: 'تعذر تحديث حالة التوفر: $error',
+              en: 'Unable to update availability: $error',
             ),
           ),
         ),
@@ -206,7 +224,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         SnackBar(
           content: Text(
             context.tr(
-              ar: 'تعذر حذف الدواء: $error', en: 'Unable to delete medicine: $error',
+              ar: 'تعذر حذف الدواء: $error',
+              en: 'Unable to delete medicine: $error',
             ),
           ),
         ),
@@ -214,6 +233,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     }
   }
 
+  // حفظ بيانات الملف الشخصي الحالية بعد التعديل.
   Future<void> _saveCurrentProfile({
     required String name,
     required String username,
@@ -230,6 +250,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 
+  // فتح نافذة تعديل الملف الشخصي للصيدلي.
   Future<void> _openProfileEditor({
     required AppUserModel? profile,
     required String displayName,
@@ -247,6 +268,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 
+  // الانتقال إلى صفحة الإعدادات من القائمة الجانبية.
   void _openSettingsFromDrawer() {
     Navigator.of(context).pop();
     Navigator.push(
@@ -255,6 +277,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 
+  // بناء محتوى الصفحة حسب التبويب المحدد.
   Widget _buildPage(
     List<PharmacyTaskModel> tasks,
     List<SharedMedicineModel> sharedMedicines,
@@ -272,7 +295,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         onToggleAvailability: _toggleMedicineAvailability,
         onDeleteMedicine: _deleteMedicineListing,
       ),
-      _WorkflowTab(
+      _WorkflowTabModern(
         tasks: tasks,
         onToggle: _pharmacyService.toggleTask,
         onAdjust: (task, delta) =>
@@ -311,6 +334,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 
+  // تحديد شكل وعمل الزر العائم بحسب التبويب الحالي.
   Widget? _buildFloatingActionButton() {
     if (_selectedIndex == 4) {
       return null;
@@ -353,6 +377,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
 
   @override
   Widget build(BuildContext context) {
+    // التسلسل هنا مهم: ملف المستخدم ثم المخزون ثم الأدوية المنشورة.
     return StreamBuilder<AppUserModel?>(
       stream: _watchCurrentProfile(),
       builder: (context, profileSnapshot) {
@@ -456,7 +481,8 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                                     profile: profile,
                                     fallbackName: displayName,
                                     roleLabel: context.tr(
-                                      ar: 'لوحة تشغيل الصيدلية', en: 'Pharmacy control room',
+                                      ar: 'لوحة تشغيل الصيدلية',
+                                      en: 'Pharmacy control room',
                                     ),
                                     accentColors: const [
                                       AppPalette.pharmacistPrimary,
@@ -543,8 +569,3 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 }
-
-
-
-
-

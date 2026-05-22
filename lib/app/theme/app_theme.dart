@@ -240,21 +240,7 @@ class _DawaTimePageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final curvedAnimation = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-
-    return FadeTransition(
-      opacity: curvedAnimation,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0.04, 0.03),
-          end: Offset.zero,
-        ).animate(curvedAnimation),
-        child: child,
-      ),
-    );
+    // Keep route transitions instant to avoid any intermediate blank frames.
+    return child;
   }
 }

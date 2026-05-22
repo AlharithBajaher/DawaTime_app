@@ -1,4 +1,4 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -34,8 +34,7 @@ class PatientHome extends StatefulWidget {
   State<PatientHome> createState() => _PatientHomeState();
 }
 
-class _PatientHomeState extends State<PatientHome>
-    with WidgetsBindingObserver {
+class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
   final AuthService _authService = AuthService();
   final MedicationService _medicationService = MedicationService();
   final SharedMedicineService _sharedMedicineService = SharedMedicineService();
@@ -354,8 +353,9 @@ class _PatientHomeState extends State<PatientHome>
     }
 
     final reminderAt = depletionAt.subtract(const Duration(days: 2));
-    if (reminderAt.isBefore(now.add(const Duration(minutes: 1)))) {
-      return now.add(const Duration(minutes: 1));
+    if (!reminderAt.isAfter(now)) {
+      final tomorrow = now.add(const Duration(days: 1));
+      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
     }
     return reminderAt;
   }
@@ -391,18 +391,15 @@ class _PatientHomeState extends State<PatientHome>
 
     final safeDraftQuantity = draft.quantity.clamp(1, 1000000).toInt();
     final safeExistingQuantity = existing.quantity.clamp(1, 1000000).toInt();
-    final safeExistingRemaining = existing.remainingQuantity
-        .clamp(0, safeExistingQuantity)
-        .toInt();
 
-    if (safeDraftQuantity >= safeExistingQuantity) {
-      final refillDelta = safeDraftQuantity - safeExistingQuantity;
-      return (safeExistingRemaining + refillDelta)
-          .clamp(0, safeDraftQuantity)
-          .toInt();
+    // عند تعديل كمية العبوة، نعتبرها إعادة تعبئة جديدة بالكامل.
+    // مثال: من 20 (المتبقي 4) إلى 16 => تصبح 16/16 مباشرة.
+    if (safeDraftQuantity != safeExistingQuantity) {
+      return safeDraftQuantity;
     }
 
-    return safeExistingRemaining.clamp(0, safeDraftQuantity).toInt();
+    // إذا لم تتغير الكمية، نحافظ على المتبقي الحالي.
+    return existing.remainingQuantity.clamp(0, safeDraftQuantity).toInt();
   }
 
   Future<void> _saveMedication(
@@ -423,9 +420,10 @@ class _PatientHomeState extends State<PatientHome>
           requiredCount: notificationCount - existing.notificationIds.length,
           seedText: '$draftSeed:${existing.id}',
         );
-        final merged = <int>{...existing.notificationIds, ...extraIds}.toList(
-          growable: false,
-        );
+        final merged = <int>{
+          ...existing.notificationIds,
+          ...extraIds,
+        }.toList(growable: false);
         notificationIds = merged.length >= notificationCount
             ? merged.take(notificationCount).toList(growable: false)
             : <int>[
@@ -514,11 +512,15 @@ class _PatientHomeState extends State<PatientHome>
         if (existing != null &&
             existing.notificationIds.isNotEmpty &&
             existing.notificationIds.join(',') != notificationIds.join(',')) {
-          await NotificationService.cancelNotifications(existing.notificationIds);
+          await NotificationService.cancelNotifications(
+            existing.notificationIds,
+          );
         }
         if (existing != null) {
           await NotificationService.cancelNotification(
-            NotificationService.lowStockNotificationIdForMedication(existing.id),
+            NotificationService.lowStockNotificationIdForMedication(
+              existing.id,
+            ),
           );
         }
       } catch (_) {
@@ -609,9 +611,7 @@ class _PatientHomeState extends State<PatientHome>
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(
-            context.tr(ar: 'حذف الدواء', en: 'Delete medicine'),
-          ),
+          title: Text(context.tr(ar: 'حذف الدواء', en: 'Delete medicine')),
           content: Text(
             context.tr(
               ar: 'هل تريد حذف ${medication.name} نهائياً؟',
@@ -679,16 +679,16 @@ class _PatientHomeState extends State<PatientHome>
               en: '${dose.medication.name} was taken at $timeLabel. Remaining quantity: ${result.remainingQuantity}.',
             );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_formatOperationError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_formatOperationError(error))));
     } finally {
       if (mounted) {
         setState(() => _doseActionInProgress = false);
@@ -741,9 +741,9 @@ class _PatientHomeState extends State<PatientHome>
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_formatOperationError(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_formatOperationError(error))));
     } finally {
       if (mounted) {
         setState(() => _doseActionInProgress = false);
@@ -936,10 +936,7 @@ class _PatientHomeState extends State<PatientHome>
           onLearnMore: () {
             _openPlaceholderPage(
               _SimplePage(
-                title: context.tr(
-                  ar: 'تعرّف على المزيد',
-                  en: 'Learn more',
-                ),
+                title: context.tr(ar: 'تعرّف على المزيد', en: 'Learn more'),
                 description: context.tr(
                   ar: 'يمكن توسيع هذه الصفحة لاحقاً بمحتوى دعم وإرشادات صحية.',
                   en: 'This page can be expanded later with support content and health guidance.',
@@ -1072,15 +1069,15 @@ class _PatientHomeState extends State<PatientHome>
                                     constraints: const BoxConstraints(
                                       maxWidth: AppLayout.maxContentWidth,
                                     ),
-                                     child: _buildTabContent(
-                                        medications,
-                                        allMedications,
-                                        sharedMedicines,
-                                        timeline,
-                                        profile,
-                                        displayName,
-                                        email,
-                                      ),
+                                    child: _buildTabContent(
+                                      medications,
+                                      allMedications,
+                                      sharedMedicines,
+                                      timeline,
+                                      profile,
+                                      displayName,
+                                      email,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1187,5 +1184,3 @@ class _DoseMoment {
     return '$hour:$minute $period';
   }
 }
-
-

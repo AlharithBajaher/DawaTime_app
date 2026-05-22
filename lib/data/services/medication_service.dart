@@ -10,28 +10,6 @@ class MedicationService {
 
   String? get _uid => _auth.currentUser?.uid;
 
-  static const List<String> _allowedMedicationKeys = <String>[
-    'userId',
-    'name',
-    'dose',
-    'form',
-    'quantity',
-    'remainingQuantity',
-    'doseUnit',
-    'time',
-    'hour',
-    'minute',
-    'frequency',
-    'doseTimes',
-    'intervalDays',
-    'notificationIds',
-    'takenDoseLogs',
-    'skippedDoseLogs',
-    'isArchived',
-    'archivedAt',
-    'createdAt',
-  ];
-
   Future<String> addMedication({
     required String name,
     required String dose,
@@ -140,7 +118,9 @@ class MedicationService {
   Future<void> deleteMedication(MedicationModel medication) async {
     if (medication.notificationIds.isNotEmpty) {
       try {
-        await NotificationService.cancelNotifications(medication.notificationIds);
+        await NotificationService.cancelNotifications(
+          medication.notificationIds,
+        );
       } catch (_) {
         // Continue deleting even if local notifications cannot be cancelled.
       }
@@ -164,81 +144,48 @@ class MedicationService {
     final takenTime = (takenAt ?? DateTime.now()).toLocal();
     final key = MedicationModel.doseLogKeyFor(scheduledAt);
     final docRef = _firestore.collection('medications').doc(medication.id);
-    DoseTakeResult result;
-    try {
-      result = await _firestore.runTransaction<DoseTakeResult>((transaction) async {
-        final snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) {
-          return const DoseTakeResult(
-            archivedMedication: true,
-            remainingQuantity: 0,
-          );
-        }
+    final takenDoseLogs = Map<String, dynamic>.fromEntries(
+      medication.takenDoseLogs.entries.map(
+        (entry) => MapEntry<String, dynamic>(
+          entry.key,
+          Timestamp.fromDate(entry.value),
+        ),
+      ),
+    );
+    final skippedDoseLogs = Map<String, dynamic>.fromEntries(
+      medication.skippedDoseLogs.entries.map(
+        (entry) => MapEntry<String, dynamic>(
+          entry.key,
+          Timestamp.fromDate(entry.value),
+        ),
+      ),
+    );
+    final currentRemaining = medication.remainingQuantity;
 
-        final data = snapshot.data() ?? const <String, dynamic>{};
-        final takenDoseLogs = Map<String, dynamic>.from(
-          data['takenDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-        );
-        final currentRemaining =
-            (data['remainingQuantity'] as num?)?.toInt() ??
-            (data['quantity'] as num?)?.toInt() ??
-            0;
-
-        if (takenDoseLogs.containsKey(key)) {
-          return DoseTakeResult(
-            archivedMedication: false,
-            remainingQuantity: currentRemaining,
-          );
-        }
-
-        final nextRemaining = (currentRemaining - 1).clamp(0, 1000000).toInt();
-        final shouldArchive = nextRemaining <= 0;
-        final base = _sanitizeMedicationData(data);
-        final nextTakenLogs = Map<String, dynamic>.from(
-          base['takenDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-        );
-        final nextSkippedLogs = Map<String, dynamic>.from(
-          base['skippedDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-        );
-        nextTakenLogs[key] = Timestamp.fromDate(takenTime);
-        nextSkippedLogs.remove(key);
-
-        base['takenDoseLogs'] = nextTakenLogs;
-        base['skippedDoseLogs'] = nextSkippedLogs;
-        base['remainingQuantity'] = shouldArchive ? 0 : nextRemaining;
-        base['isArchived'] = shouldArchive;
-        base['archivedAt'] = shouldArchive ? Timestamp.fromDate(takenTime) : null;
-
-        transaction.set(docRef, base);
-
-        return DoseTakeResult(
-          archivedMedication: shouldArchive,
-          remainingQuantity: shouldArchive ? 0 : nextRemaining,
-        );
-      });
-    } catch (_) {
-      if (medication.isDoseTaken(scheduledAt)) {
-        result = DoseTakeResult(
-          archivedMedication: medication.remainingQuantity <= 0,
-          remainingQuantity: medication.remainingQuantity,
-        );
-      } else {
-        final nextRemaining = (medication.remainingQuantity - 1)
-            .clamp(0, medication.quantity)
-            .toInt();
-        final shouldArchive = nextRemaining <= 0;
-        await docRef.set({
-          'takenDoseLogs.$key': Timestamp.fromDate(takenTime),
-          'skippedDoseLogs.$key': FieldValue.delete(),
-          'remainingQuantity': shouldArchive ? 0 : nextRemaining,
-          'isArchived': shouldArchive,
-          'archivedAt': shouldArchive ? Timestamp.fromDate(takenTime) : null,
-        }, SetOptions(merge: true));
-        result = DoseTakeResult(
-          archivedMedication: shouldArchive,
-          remainingQuantity: shouldArchive ? 0 : nextRemaining,
-        );
-      }
+    final DoseTakeResult result;
+    if (takenDoseLogs.containsKey(key)) {
+      result = DoseTakeResult(
+        archivedMedication: currentRemaining <= 0,
+        remainingQuantity: currentRemaining,
+      );
+    } else {
+      final nextRemaining = (currentRemaining - 1).clamp(0, 1000000).toInt();
+      final shouldArchive = nextRemaining <= 0;
+      final nextTakenLogs = Map<String, dynamic>.from(takenDoseLogs)
+        ..[key] = Timestamp.fromDate(takenTime);
+      final nextSkippedLogs = Map<String, dynamic>.from(skippedDoseLogs)
+        ..remove(key);
+      await docRef.set({
+        'takenDoseLogs': nextTakenLogs,
+        'skippedDoseLogs': nextSkippedLogs,
+        'remainingQuantity': shouldArchive ? 0 : nextRemaining,
+        'isArchived': shouldArchive,
+        'archivedAt': shouldArchive ? Timestamp.fromDate(takenTime) : null,
+      }, SetOptions(merge: true));
+      result = DoseTakeResult(
+        archivedMedication: shouldArchive,
+        remainingQuantity: shouldArchive ? 0 : nextRemaining,
+      );
     }
 
     if (result.archivedMedication) {
@@ -251,7 +198,9 @@ class MedicationService {
       }
       try {
         await NotificationService.cancelNotification(
-          NotificationService.lowStockNotificationIdForMedication(medication.id),
+          NotificationService.lowStockNotificationIdForMedication(
+            medication.id,
+          ),
         );
       } catch (_) {}
     }
@@ -267,32 +216,26 @@ class MedicationService {
     final skippedTime = (skippedAt ?? DateTime.now()).toLocal();
     final key = MedicationModel.doseLogKeyFor(scheduledAt);
     final docRef = _firestore.collection('medications').doc(medication.id);
-    try {
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) {
-          return;
-        }
-
-        final base = _sanitizeMedicationData(snapshot.data() ?? const <String, dynamic>{});
-        final nextTakenLogs = Map<String, dynamic>.from(
-          base['takenDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-        );
-        final nextSkippedLogs = Map<String, dynamic>.from(
-          base['skippedDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-        );
-        nextTakenLogs.remove(key);
-        nextSkippedLogs[key] = Timestamp.fromDate(skippedTime);
-        base['takenDoseLogs'] = nextTakenLogs;
-        base['skippedDoseLogs'] = nextSkippedLogs;
-        transaction.set(docRef, base);
-      });
-    } catch (_) {
-      await docRef.set({
-        'skippedDoseLogs.$key': Timestamp.fromDate(skippedTime),
-        'takenDoseLogs.$key': FieldValue.delete(),
-      }, SetOptions(merge: true));
-    }
+    final nextSkippedLogs = Map<String, dynamic>.fromEntries(
+      medication.skippedDoseLogs.entries.map(
+        (entry) => MapEntry<String, dynamic>(
+          entry.key,
+          Timestamp.fromDate(entry.value),
+        ),
+      ),
+    )..[key] = Timestamp.fromDate(skippedTime);
+    final nextTakenLogs = Map<String, dynamic>.fromEntries(
+      medication.takenDoseLogs.entries.map(
+        (entry) => MapEntry<String, dynamic>(
+          entry.key,
+          Timestamp.fromDate(entry.value),
+        ),
+      ),
+    )..remove(key);
+    await docRef.set({
+      'skippedDoseLogs': nextSkippedLogs,
+      'takenDoseLogs': nextTakenLogs,
+    }, SetOptions(merge: true));
   }
 
   Future<void> clearTakenDose({
@@ -322,84 +265,6 @@ class MedicationService {
     await _firestore.collection('medications').doc(medicationId).set({
       'notificationIds': notificationIds,
     }, SetOptions(merge: true));
-  }
-
-  Map<String, dynamic> _sanitizeMedicationData(Map<String, dynamic> data) {
-    final userId = (data['userId'] as String?) ?? (_uid ?? '');
-    final name = (data['name'] as String?) ?? '';
-    final dose = (data['dose'] as String?) ?? '';
-    final form = (data['form'] as String?) ?? 'tablet';
-    final quantity = ((data['quantity'] as num?)?.toInt() ?? 1).clamp(0, 1000000);
-    final remainingQuantity = ((data['remainingQuantity'] as num?)?.toInt() ?? quantity)
-        .clamp(0, quantity);
-    final doseUnit = (data['doseUnit'] as String?) ?? 'tablet';
-    final hour = ((data['hour'] as num?)?.toInt() ?? 9).clamp(0, 23);
-    final minute = ((data['minute'] as num?)?.toInt() ?? 0).clamp(0, 59);
-    final doseTimes = data['doseTimes'] is List
-        ? (data['doseTimes'] as List)
-              .whereType<Map>()
-              .map((item) {
-                final map = Map<String, dynamic>.from(item);
-                return <String, int>{
-                  'hour': ((map['hour'] as num?)?.toInt() ?? hour).clamp(0, 23),
-                  'minute': ((map['minute'] as num?)?.toInt() ?? minute).clamp(0, 59),
-                };
-              })
-              .toList(growable: false)
-        : <Map<String, int>>[];
-    final safeDoseTimes = doseTimes.isNotEmpty
-        ? doseTimes
-        : <Map<String, int>>[
-            <String, int>{'hour': hour, 'minute': minute},
-          ];
-    final frequency =
-        ((data['frequency'] as num?)?.toInt() ?? safeDoseTimes.length)
-            .clamp(1, 24);
-    final intervalDays = ((data['intervalDays'] as num?)?.toInt() ?? 1)
-        .clamp(1, 365);
-    final notificationIds = (data['notificationIds'] as List<dynamic>? ?? const <dynamic>[])
-        .whereType<num>()
-        .map((id) => id.toInt())
-        .toList(growable: false);
-    final takenDoseLogs = Map<String, dynamic>.from(
-      data['takenDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-    );
-    final skippedDoseLogs = Map<String, dynamic>.from(
-      data['skippedDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-    );
-
-    final sanitized = <String, dynamic>{
-      'userId': userId,
-      'name': name,
-      'dose': dose,
-      'form': form,
-      'quantity': quantity,
-      'remainingQuantity': remainingQuantity,
-      'doseUnit': doseUnit,
-      'time': (data['time'] as String?) ?? _formatLegacyTime(hour, minute),
-      'hour': hour,
-      'minute': minute,
-      'frequency': frequency,
-      'doseTimes': safeDoseTimes,
-      'intervalDays': intervalDays,
-      'notificationIds': notificationIds,
-      'takenDoseLogs': takenDoseLogs,
-      'skippedDoseLogs': skippedDoseLogs,
-      'isArchived': data['isArchived'] as bool? ?? false,
-      'archivedAt': data['archivedAt'],
-      'createdAt': data['createdAt'],
-    };
-
-    return Map<String, dynamic>.fromEntries(
-      sanitized.entries.where((entry) => _allowedMedicationKeys.contains(entry.key)),
-    );
-  }
-
-  String _formatLegacyTime(int hour, int minute) {
-    final normalizedHour = hour % 12 == 0 ? 12 : hour % 12;
-    final period = hour >= 12 ? 'PM' : 'AM';
-    final minuteLabel = minute.toString().padLeft(2, '0');
-    return '$normalizedHour:$minuteLabel $period';
   }
 }
 

@@ -1,7 +1,9 @@
 part of 'welcome_portal.dart';
 
 class _LaunchPortalPage extends StatelessWidget {
-  const _LaunchPortalPage();
+  const _LaunchPortalPage({required this.onOpenDetailsPage});
+
+  final Future<void> Function(Widget page) onOpenDetailsPage;
 
   @override
   Widget build(BuildContext context) {
@@ -97,12 +99,7 @@ class _LaunchPortalPage extends StatelessWidget {
                         const SizedBox(height: 34),
                         DepthCard(
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const _GuidePage(),
-                              ),
-                            );
+                            onOpenDetailsPage(const _GuidePage());
                           },
                           child: Center(
                             child: Text(
@@ -121,12 +118,7 @@ class _LaunchPortalPage extends StatelessWidget {
                           children: [
                             InkWell(
                               onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const _PrivacyPage(),
-                                  ),
-                                );
+                                onOpenDetailsPage(const _PrivacyPage());
                               },
                               child: Text(
                                 context.t(AppText.welcomePrivacy),
@@ -151,12 +143,7 @@ class _LaunchPortalPage extends StatelessWidget {
                             const SizedBox(width: AppSpacing.sm),
                             InkWell(
                               onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const _TermsPage(),
-                                  ),
-                                );
+                                onOpenDetailsPage(const _TermsPage());
                               },
                               child: Text(
                                 context.t(AppText.welcomeTerms),

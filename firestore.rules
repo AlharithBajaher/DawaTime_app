@@ -210,7 +210,6 @@ service cloud.firestore {
 
       allow update: if
         (
-          // owner edits normal profile fields only
           isOwner(userId)
           && request.resource.data.keys().hasOnly(userAllowedKeys())
           && request.resource.data.email == resource.data.email
@@ -229,7 +228,6 @@ service cloud.firestore {
         )
         ||
         (
-          // bootstrap admin self-heal (ensureAdminProfile)
           isBootstrapAdmin()
           && isOwner(userId)
           && request.resource.data.keys().hasOnly(userAllowedKeys())
@@ -249,7 +247,6 @@ service cloud.firestore {
         )
         ||
         (
-          // admin approves/rejects pharmacists
           isAdmin()
           && resource.data.role == "pharmacist"
           && request.resource.data.keys().hasOnly(userAllowedKeys())
@@ -263,15 +260,9 @@ service cloud.firestore {
             || request.resource.data.approvalStatus == "rejected"
           )
           && request.resource.data.approvedBy == request.auth.uid
-          && request.resource.data.name == resource.data.name
-          && request.resource.data.username == resource.data.username
           && request.resource.data.email == resource.data.email
           && request.resource.data.role == resource.data.role
           && request.resource.data.authProvider == resource.data.authProvider
-          && request.resource.data.photoUrl == resource.data.photoUrl
-          && request.resource.data.pharmacyName == resource.data.pharmacyName
-          && request.resource.data.pharmacyLocation == resource.data.pharmacyLocation
-          && request.resource.data.pharmacyPhone == resource.data.pharmacyPhone
           && request.resource.data.createdAt == resource.data.createdAt
         );
 
@@ -318,24 +309,8 @@ service cloud.firestore {
 
       allow update: if isPatient()
         && resource.data.userId == request.auth.uid
-        && request.resource.data.keys().hasOnly(medicationAllowedKeys())
         && request.resource.data.userId == resource.data.userId
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.quantity is number
-        && request.resource.data.quantity >= 1
-        && request.resource.data.remainingQuantity is number
-        && request.resource.data.remainingQuantity >= 0
-        && request.resource.data.remainingQuantity <= request.resource.data.quantity
-        && request.resource.data.doseTimes is list
-        && request.resource.data.doseTimes.size() >= 1
-        && request.resource.data.doseTimes.size() <= 24
-        && request.resource.data.notificationIds is list
-        && validHourMinuteForUpdate(
-          request.resource.data.hour,
-          request.resource.data.minute
-        )
-        && validFrequency(request.resource.data.frequency)
-        && validIntervalDays(request.resource.data.intervalDays);
+        && request.resource.data.createdAt == resource.data.createdAt;
 
       allow delete: if isPatient() && resource.data.userId == request.auth.uid;
     }
@@ -378,17 +353,42 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(pharmacyAllowedKeys())
         && request.resource.data.pharmacistId == resource.data.pharmacistId
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.title is string
-        && request.resource.data.details is string
-        && request.resource.data.category is string
-        && request.resource.data.priority is string
-        && request.resource.data.unit is string
-        && request.resource.data.quantity is number
-        && request.resource.data.quantity >= 0
-        && request.resource.data.minQuantity is number
-        && request.resource.data.minQuantity >= 0
-        && request.resource.data.isOutOfStock is bool
-        && request.resource.data.isCompleted is bool;
+        && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              "title",
+              "details",
+              "category",
+              "priority",
+              "minQuantity",
+              "unit"
+            ])
+            && request.resource.data.title is string
+            && request.resource.data.details is string
+            && request.resource.data.category is string
+            && request.resource.data.priority is string
+            && request.resource.data.unit is string
+            && request.resource.data.quantity is number
+            && request.resource.data.quantity >= 0
+            && request.resource.data.minQuantity is number
+            && request.resource.data.minQuantity >= 0
+            && request.resource.data.isOutOfStock is bool
+            && request.resource.data.isCompleted is bool
+          )
+          ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "quantity",
+              "isOutOfStock",
+              "isCompleted",
+              "updatedAt"
+            ])
+            && request.resource.data.quantity is number
+            && request.resource.data.quantity >= 0
+            && request.resource.data.isOutOfStock is bool
+            && request.resource.data.isCompleted is bool
+          )
+        );
 
       allow delete: if isApprovedPharmacist()
         && resource.data.pharmacistId == request.auth.uid;
@@ -430,10 +430,48 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(sharedMedicineAllowedKeys())
         && request.resource.data.pharmacistId == resource.data.pharmacistId
         && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.price is number
-        && request.resource.data.price >= 0
-        && request.resource.data.searchIndex is list
-        && request.resource.data.searchIndex.size() >= 1;
+        && (
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              "name",
+              "description",
+              "usageInstructions",
+              "dosage",
+              "packageSize",
+              "price",
+              "location",
+              "pharmacyPhone",
+              "category",
+              "requiresPrescription",
+              "searchIndex",
+              "imageUrl",
+              "imageStoragePath"
+            ])
+            && request.resource.data.price is number
+            && request.resource.data.price >= 0
+            && request.resource.data.searchIndex is list
+            && request.resource.data.searchIndex.size() >= 1
+            && request.resource.data.isAvailable is bool
+          )
+          ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "isAvailable",
+              "updatedAt"
+            ])
+            && request.resource.data.isAvailable is bool
+          )
+          ||
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              "pharmacistName",
+              "pharmacyName",
+              "location",
+              "pharmacyPhone",
+              "updatedAt"
+            ])
+          )
+        );
 
       allow delete: if isApprovedPharmacist()
         && resource.data.pharmacistId == request.auth.uid;

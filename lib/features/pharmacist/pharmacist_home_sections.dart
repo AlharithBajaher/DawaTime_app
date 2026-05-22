@@ -1,5 +1,7 @@
 part of 'pharmacist_home.dart';
 
+// هذه الصفحة تعرض ملخص تشغيل الصيدلية (النشاط، العاجل، المكتمل)
+// مع عرض سريع لأولويات المخزون اليومية.
 class _PharmacistOverviewTab extends StatelessWidget {
   const _PharmacistOverviewTab({
     required this.active,
@@ -18,12 +20,7 @@ class _PharmacistOverviewTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.xs,
-        AppSpacing.lg,
-        120,
-      ),
+      padding: _pharmacistPagePadding,
       children: [
         DepthCard(
           gradient: const LinearGradient(
@@ -89,7 +86,10 @@ class _PharmacistOverviewTab extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                context.tr(ar: 'تركيز المخزون اليوم', en: 'Today inventory focus'),
+                context.tr(
+                  ar: 'تركيز المخزون اليوم',
+                  en: 'Today inventory focus',
+                ),
                 style: const TextStyle(
                   fontSize: AppFontSize.title,
                   fontWeight: FontWeight.w800,
@@ -110,7 +110,10 @@ class _PharmacistOverviewTab extends StatelessWidget {
                     ElevatedButton(
                       onPressed: onCreateTask,
                       child: Text(
-                        context.tr(ar: 'إضافة عنصر مخزون', en: 'Add inventory item'),
+                        context.tr(
+                          ar: 'إضافة عنصر مخزون',
+                          en: 'Add inventory item',
+                        ),
                       ),
                     ),
                   ],
@@ -132,6 +135,7 @@ class _PharmacistOverviewTab extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _WorkflowTab extends StatelessWidget {
   const _WorkflowTab({
     required this.tasks,
@@ -150,12 +154,7 @@ class _WorkflowTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.xs,
-        AppSpacing.lg,
-        120,
-      ),
+      padding: _pharmacistPagePadding,
       children: [
         Text(
           context.tr(ar: 'إدارة المخزون', en: 'Inventory management'),
@@ -251,6 +250,7 @@ class _WorkflowTab extends StatelessWidget {
 class _InsightsTab extends StatelessWidget {
   const _InsightsTab({required this.tasks});
 
+  // بيانات المخزون التي تُستخدم لإنتاج بطاقات التحليل والإحصاءات.
   final List<PharmacyTaskModel> tasks;
 
   @override
@@ -264,12 +264,7 @@ class _InsightsTab extends StatelessWidget {
         .length;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.xs,
-        AppSpacing.lg,
-        120,
-      ),
+      padding: _pharmacistPagePadding,
       children: [
         Text(
           context.tr(ar: 'تحليلات المخزون', en: 'Inventory insights'),
@@ -413,12 +408,7 @@ class _PharmacistAccountTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.xs,
-        AppSpacing.lg,
-        120,
-      ),
+      padding: _pharmacistPagePadding,
       children: [
         DepthCard(
           gradient: const LinearGradient(
@@ -464,10 +454,7 @@ class _PharmacistAccountTab extends StatelessWidget {
             children: [
               _ActionRow(
                 icon: Icons.edit_outlined,
-                title: context.tr(
-                  ar: 'تعديل الملف الشخصي',
-                  en: 'Edit profile',
-                ),
+                title: context.tr(ar: 'تعديل الملف الشخصي', en: 'Edit profile'),
               ),
               const Divider(),
               _ActionRow(
@@ -533,6 +520,7 @@ class _PharmacyStat extends StatelessWidget {
 class _WorkflowTile extends StatelessWidget {
   const _WorkflowTile({required this.task});
 
+  // يمثل عنصر مخزون واحد مع حالة الكمية والتنبيه.
   final PharmacyTaskModel task;
 
   @override
@@ -585,10 +573,8 @@ class _WorkflowTile extends StatelessWidget {
                   task.isOutOfStock
                       ? context.tr(ar: 'نفد المخزون', en: 'Out of stock')
                       : context.tr(
-                          ar:
-                              'الكمية: ${task.quantity} | حد التنبيه: ${task.minQuantity}',
-                          en:
-                              'Qty: ${task.quantity} | Min: ${task.minQuantity}',
+                          ar: 'الكمية: ${task.quantity} | حد التنبيه: ${task.minQuantity}',
+                          en: 'Qty: ${task.quantity} | Min: ${task.minQuantity}',
                         ),
                   style: TextStyle(
                     color: task.isOutOfStock
@@ -750,6 +736,7 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
     required this.onSignOut,
   });
 
+  // معلومات الحساب المعروضة + أوامر التعديل وتسجيل الخروج.
   final String email;
   final String displayName;
   final VoidCallback onEditProfile;
@@ -809,10 +796,7 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
             children: [
               _ActionRow(
                 icon: Icons.edit_outlined,
-                title: context.tr(
-                  ar: 'تعديل الملف الشخصي',
-                  en: 'Edit profile',
-                ),
+                title: context.tr(ar: 'تعديل الملف الشخصي', en: 'Edit profile'),
                 onTap: onEditProfile,
               ),
               const Divider(),

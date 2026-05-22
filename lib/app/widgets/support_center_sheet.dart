@@ -11,6 +11,8 @@ class SupportCenterSheet {
   static const String supportPhone = '+967771406612';
   static const String supportWhatsapp = '+967771406612';
   static const String supportEmail = 'alharithbayousef@gmail.com';
+  static const String supportInstagram =
+      'https://www.instagram.com/%F0%9D%91%AC%F0%9D%92%8F%F0%9D%92%88.%F0%9D%91%A8%F0%9D%92%8D%F0%9D%92%89%F0%9D%92%82%F0%9D%92%93%F0%9D%92%8A%F0%9D%92%95%F0%9D%92%89-%F0%9D%91%A9%F0%9D%92%82%F0%9D%92%80%F0%9D%92%90%F0%9D%92%96%F0%9D%92%94%F0%9D%92%86%F0%9D%92%87';
 
   static const String developerName = 'Alharith Abdullah Bajaher';
   static const String developerPhone = '+967771406612';
@@ -49,12 +51,30 @@ class _SupportContentSheet extends StatelessWidget {
     return _BaseContactSheet(
       title: context.tr(ar: 'الدعم والتواصل', en: 'Support & contact'),
       subtitle: context.tr(
-        ar: 'تواصل مباشرة مع فريق دعم دوا تايم عبر الضغط على الزر المناسب.',
-        en: 'Contact DawaTime support directly using the action buttons.',
+        ar: 'تواصل مباشرة مع فريق دعم دوا تايم عبر أزرار سريعة.',
+        en: 'Contact DawaTime support directly using quick action buttons.',
       ),
       sections: [
         _ContactSection(
           title: context.tr(ar: 'الدعم الرسمي', en: 'Official support'),
+          actions: [
+            _ContactActionButtonData.phone(
+              label: context.tr(ar: 'اتصال', en: 'Call'),
+              value: SupportCenterSheet.supportPhone,
+            ),
+            _ContactActionButtonData.whatsapp(
+              label: context.tr(ar: 'واتساب', en: 'WhatsApp'),
+              value: SupportCenterSheet.supportWhatsapp,
+            ),
+            _ContactActionButtonData.instagram(
+              label: context.tr(ar: 'إنستقرام', en: 'Instagram'),
+              value: SupportCenterSheet.supportInstagram,
+            ),
+            _ContactActionButtonData.email(
+              label: context.tr(ar: 'إيميل', en: 'Email'),
+              value: SupportCenterSheet.supportEmail,
+            ),
+          ],
           rows: [
             _ContactRowData.phone(
               label: context.tr(ar: 'اتصال هاتفي', en: 'Phone call'),
@@ -86,6 +106,24 @@ class _DeveloperContentSheet extends StatelessWidget {
       sections: [
         _ContactSection(
           title: context.tr(ar: 'بيانات التواصل', en: 'Contact details'),
+          actions: [
+            _ContactActionButtonData.phone(
+              label: context.tr(ar: 'اتصال', en: 'Call'),
+              value: SupportCenterSheet.developerPhone,
+            ),
+            _ContactActionButtonData.whatsapp(
+              label: context.tr(ar: 'واتساب', en: 'WhatsApp'),
+              value: SupportCenterSheet.developerWhatsapp,
+            ),
+            _ContactActionButtonData.instagram(
+              label: context.tr(ar: 'إنستقرام', en: 'Instagram'),
+              value: SupportCenterSheet.developerInstagram,
+            ),
+            _ContactActionButtonData.email(
+              label: context.tr(ar: 'إيميل', en: 'Email'),
+              value: SupportCenterSheet.developerEmailPrimary,
+            ),
+          ],
           rows: [
             _ContactRowData.phone(
               label: context.tr(ar: 'موبايل', en: 'Mobile'),
@@ -173,10 +211,15 @@ class _BaseContactSheet extends StatelessWidget {
 }
 
 class _ContactSection {
-  const _ContactSection({required this.title, required this.rows});
+  const _ContactSection({
+    required this.title,
+    required this.rows,
+    this.actions = const <_ContactActionButtonData>[],
+  });
 
   final String title;
   final List<_ContactRowData> rows;
+  final List<_ContactActionButtonData> actions;
 }
 
 class _ContactSectionWidget extends StatelessWidget {
@@ -204,6 +247,16 @@ class _ContactSectionWidget extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
+          if (section.actions.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: section.actions
+                  .map((action) => _ContactActionIconButton(data: action))
+                  .toList(growable: false),
+            ),
+          ],
           const SizedBox(height: AppSpacing.xs),
           ...section.rows.map(
             (row) => Padding(
@@ -218,6 +271,123 @@ class _ContactSectionWidget extends StatelessWidget {
 }
 
 enum _ContactActionType { phone, whatsapp, email, link }
+
+class _ContactActionButtonData {
+  const _ContactActionButtonData({
+    required this.label,
+    required this.value,
+    required this.type,
+    required this.icon,
+    required this.tintColor,
+  });
+
+  factory _ContactActionButtonData.phone({
+    required String label,
+    required String value,
+  }) => _ContactActionButtonData(
+    label: label,
+    value: value,
+    type: _ContactActionType.phone,
+    icon: Icons.call_rounded,
+    tintColor: const Color(0xFF1E88E5),
+  );
+
+  factory _ContactActionButtonData.whatsapp({
+    required String label,
+    required String value,
+  }) => _ContactActionButtonData(
+    label: label,
+    value: value,
+    type: _ContactActionType.whatsapp,
+    icon: Icons.chat_bubble_rounded,
+    tintColor: const Color(0xFF22A55D),
+  );
+
+  factory _ContactActionButtonData.email({
+    required String label,
+    required String value,
+  }) => _ContactActionButtonData(
+    label: label,
+    value: value,
+    type: _ContactActionType.email,
+    icon: Icons.email_rounded,
+    tintColor: const Color(0xFF7E57C2),
+  );
+
+  factory _ContactActionButtonData.instagram({
+    required String label,
+    required String value,
+  }) => _ContactActionButtonData(
+    label: label,
+    value: value,
+    type: _ContactActionType.link,
+    icon: Icons.camera_alt_rounded,
+    tintColor: const Color(0xFFE1306C),
+  );
+
+  final String label;
+  final String value;
+  final _ContactActionType type;
+  final IconData icon;
+  final Color tintColor;
+}
+
+class _ContactActionIconButton extends StatelessWidget {
+  const _ContactActionIconButton({required this.data});
+
+  final _ContactActionButtonData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      onTap: () => _ContactActionLauncher.open(
+        context: context,
+        type: data.type,
+        value: data.value,
+      ),
+      onLongPress: () =>
+          _ContactActionLauncher.copyValue(context: context, value: data.value),
+      child: Container(
+        width: 84,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xs,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          color: data.tintColor.withValues(alpha: 0.08),
+          border: Border.all(color: data.tintColor.withValues(alpha: 0.26)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: data.tintColor.withValues(alpha: 0.14),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(data.icon, color: data.tintColor, size: 22),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              data.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: data.tintColor,
+                fontSize: AppFontSize.caption,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _ContactRowData {
   const _ContactRowData({
@@ -278,60 +448,6 @@ class _ContactRowWidget extends StatelessWidget {
 
   final _ContactRowData data;
 
-  Future<void> _copyToClipboard(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: data.value));
-    if (!context.mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.tr(ar: 'تم النسخ بنجاح.', en: 'Copied.'))),
-    );
-  }
-
-  Future<void> _openTarget(BuildContext context) async {
-    Uri uri;
-    switch (data.type) {
-      case _ContactActionType.phone:
-        uri = Uri(scheme: 'tel', path: data.value);
-        break;
-      case _ContactActionType.whatsapp:
-        final digits = data.value.replaceAll(RegExp(r'[^0-9]'), '');
-        uri = Uri.parse('https://wa.me/$digits');
-        break;
-      case _ContactActionType.email:
-        uri = Uri(
-          scheme: 'mailto',
-          path: data.value,
-          queryParameters: {
-            'subject': 'DawaTime Support',
-          },
-        );
-        break;
-      case _ContactActionType.link:
-        uri = Uri.parse(data.value);
-        break;
-    }
-
-    final launched = await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-
-    if (!launched && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr(
-              ar: 'تعذر فتح الرابط مباشرة. تم نسخ البيانات.',
-              en: 'Could not open directly. Copied instead.',
-            ),
-          ),
-        ),
-      );
-      await _copyToClipboard(context);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -375,15 +491,83 @@ class _ContactRowWidget extends StatelessWidget {
         const SizedBox(width: AppSpacing.xs),
         IconButton(
           tooltip: context.tr(ar: 'نسخ', en: 'Copy'),
-          onPressed: () => _copyToClipboard(context),
+          onPressed: () => _ContactActionLauncher.copyValue(
+            context: context,
+            value: data.value,
+          ),
           icon: const Icon(Icons.copy_rounded),
         ),
         IconButton(
           tooltip: context.tr(ar: 'فتح', en: 'Open'),
-          onPressed: () => _openTarget(context),
+          onPressed: () => _ContactActionLauncher.open(
+            context: context,
+            type: data.type,
+            value: data.value,
+          ),
           icon: const Icon(Icons.open_in_new_rounded),
         ),
       ],
     );
+  }
+}
+
+class _ContactActionLauncher {
+  static Future<void> copyValue({
+    required BuildContext context,
+    required String value,
+  }) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.tr(ar: 'تم النسخ بنجاح.', en: 'Copied.')),
+      ),
+    );
+  }
+
+  static Future<void> open({
+    required BuildContext context,
+    required _ContactActionType type,
+    required String value,
+  }) async {
+    Uri uri;
+    switch (type) {
+      case _ContactActionType.phone:
+        uri = Uri(scheme: 'tel', path: value);
+        break;
+      case _ContactActionType.whatsapp:
+        final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+        uri = Uri.parse('https://wa.me/$digits');
+        break;
+      case _ContactActionType.email:
+        uri = Uri(
+          scheme: 'mailto',
+          path: value,
+          queryParameters: {'subject': 'DawaTime Support'},
+        );
+        break;
+      case _ContactActionType.link:
+        uri = Uri.parse(value);
+        break;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (launched || !context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.tr(
+            ar: 'تعذر فتح الرابط مباشرة. تم نسخ البيانات.',
+            en: 'Could not open directly. Copied instead.',
+          ),
+        ),
+      ),
+    );
+    await copyValue(context: context, value: value);
   }
 }

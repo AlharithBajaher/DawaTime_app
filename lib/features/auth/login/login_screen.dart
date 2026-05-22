@@ -6,15 +6,14 @@ import '../../../app/theme/app_metrics.dart';
 import '../../../app/theme/app_theme.dart';
 import '../../../app/widgets/depth_card.dart';
 import '../../../app/widgets/language_toggle_button.dart';
+import '../../../app/widgets/support_center_sheet.dart';
 import '../../../data/models/app_user_model.dart';
 import '../../../data/services/auth_service.dart';
-import '../../admin/admin_home.dart';
 import '../../admin/admin_login_screen.dart';
-import '../../auth/account_gate_screens.dart';
-import '../../patient/patient_home.dart';
-import '../../pharmacist/pharmacist_home.dart';
 
 enum AuthScreenMode { signIn, register }
+
+enum _LoginInfoTopic { guide, privacy, terms }
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.initialMode = AuthScreenMode.signIn});
@@ -105,7 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) {
         return;
       }
-      await _navigateAfterAuth(profile);
     } on FirebaseAuthException catch (error) {
       _showSnackBar(_friendlyAuthError(error));
     } on FirebaseException catch (error) {
@@ -146,8 +144,8 @@ class _LoginScreenState extends State<LoginScreen> {
         selectedRole: _selectedRole,
       );
       _handleRoleState(profile);
-      if (mounted) {
-        await _navigateAfterAuth(profile);
+      if (!mounted) {
+        return;
       }
     } on FirebaseAuthException catch (error) {
       _showSnackBar(_friendlyAuthError(error));
@@ -181,38 +179,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     }
-  }
-
-  Future<void> _navigateAfterAuth(AppUserModel profile) async {
-    if (!mounted) {
-      return;
-    }
-
-    late final Widget target;
-    if (profile.needsAdminApproval) {
-      target = PharmacistPendingScreen(profile: profile);
-    } else if (profile.isRejected) {
-      target = PharmacistRejectedScreen(profile: profile);
-    } else {
-      switch (profile.role) {
-        case 'patient':
-          target = const PatientHome();
-          break;
-        case 'pharmacist':
-          target = const PharmacistHome();
-          break;
-        case 'admin':
-          target = const AdminHome();
-          break;
-        default:
-          return;
-      }
-    }
-
-    await Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => target),
-      (route) => false,
-    );
   }
 
   String _friendlyAuthError(FirebaseAuthException error) {
@@ -267,8 +233,13 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  String _roleName() =>
-      _selectedRole == 'pharmacist'
+  void _openInfoTopic(_LoginInfoTopic topic) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => _LoginInfoPage(topic: topic)));
+  }
+
+  String _roleName() => _selectedRole == 'pharmacist'
       ? _tr(ar: 'صيدلي', en: 'pharmacist')
       : _tr(ar: 'مريض', en: 'patient');
 
@@ -321,7 +292,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 icon: Icons.badge_outlined,
                 validator: (value) {
                   if (value == null || value.trim().length < 3) {
-                    return _tr(ar: 'أدخل الاسم الكامل.', en: 'Enter full name.');
+                    return _tr(
+                      ar: 'أدخل الاسم الكامل.',
+                      en: 'Enter full name.',
+                    );
                   }
                   return null;
                 },
@@ -332,7 +306,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 label: _tr(ar: 'اسم المستخدم', en: 'Username'),
                 icon: Icons.alternate_email_outlined,
                 validator: (value) {
-                  final normalized = _authService.normalizeUsername(value ?? '');
+                  final normalized = _authService.normalizeUsername(
+                    value ?? '',
+                  );
                   if (normalized.length < 4) {
                     return _tr(
                       ar: 'الحد الأدنى 4 أحرف أو أرقام.',
@@ -350,8 +326,13 @@ class _LoginScreenState extends State<LoginScreen> {
               icon: Icons.mail_outline_rounded,
               keyboardType: TextInputType.emailAddress,
               validator: (value) {
-                if (value == null || value.trim().isEmpty || !value.contains('@')) {
-                  return _tr(ar: 'أدخل بريدًا صالحًا.', en: 'Enter a valid email.');
+                if (value == null ||
+                    value.trim().isEmpty ||
+                    !value.contains('@')) {
+                  return _tr(
+                    ar: 'أدخل بريدًا صالحًا.',
+                    en: 'Enter a valid email.',
+                  );
                 }
                 return null;
               },
@@ -395,7 +376,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
                 validator: (value) {
                   if (value != _passwordController.text) {
-                    return _tr(ar: 'كلمتا المرور غير متطابقتين.', en: 'Passwords do not match.');
+                    return _tr(
+                      ar: 'كلمتا المرور غير متطابقتين.',
+                      en: 'Passwords do not match.',
+                    );
                   }
                   return null;
                 },
@@ -411,7 +395,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: TextButton.icon(
                   onPressed: _isLoading ? null : _openForgotPasswordSheet,
                   icon: const Icon(Icons.key_rounded, size: 18),
-                  label: Text(_tr(ar: 'نسيت كلمة المرور؟', en: 'Forgot password?')),
+                  label: Text(
+                    _tr(ar: 'نسيت كلمة المرور؟', en: 'Forgot password?'),
+                  ),
                 ),
               ),
             ],
@@ -443,7 +429,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   _isLoading
                       ? _tr(ar: 'جارٍ التنفيذ...', en: 'Working...')
                       : _isRegistering
-                      ? _tr(ar: 'إنشاء حساب ${_roleName()}', en: 'Create ${_roleName()} account')
+                      ? _tr(
+                          ar: 'إنشاء حساب ${_roleName()}',
+                          en: 'Create ${_roleName()} account',
+                        )
                       : _tr(ar: 'تسجيل الدخول', en: 'Sign in'),
                 ),
               ),
@@ -477,11 +466,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-            _DividerLabel(label: _tr(ar: 'أو باستخدام', en: 'Or continue with')),
+            _DividerLabel(
+              label: _tr(ar: 'أو باستخدام', en: 'Or continue with'),
+            ),
             const SizedBox(height: 12),
             _GoogleButton(
               isLoading: _isGoogleLoading,
               onPressed: _continueWithGoogle,
+            ),
+            const SizedBox(height: 10),
+            _LoginInfoQuickLinks(
+              onGuide: () => _openInfoTopic(_LoginInfoTopic.guide),
+              onPrivacy: () => _openInfoTopic(_LoginInfoTopic.privacy),
+              onTerms: () => _openInfoTopic(_LoginInfoTopic.terms),
             ),
           ],
         ),
@@ -569,7 +566,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 10),
                           Text(
                             _isRegistering
-                                ? _tr(ar: 'إنشاء حساب جديد', en: 'Create account')
+                                ? _tr(
+                                    ar: 'إنشاء حساب جديد',
+                                    en: 'Create account',
+                                  )
                                 : _tr(ar: 'مرحبًا بك', en: 'Welcome'),
                             style: TextStyle(
                               color: _isRegistering
@@ -635,15 +635,18 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        const Expanded(
+                        Expanded(
                           child: DepthCard(
+                            onTap: () {
+                              SupportCenterSheet.showSupportSheet(context);
+                            },
                             child: Column(
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.support_agent_rounded,
                                   color: AppPalette.patientPrimary,
                                 ),
-                                SizedBox(height: 6),
+                                const SizedBox(height: 6),
                                 Text(
                                   'التواصل بالإدارة',
                                   style: TextStyle(
@@ -667,6 +670,252 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+class _LoginInfoQuickLinks extends StatelessWidget {
+  const _LoginInfoQuickLinks({
+    required this.onGuide,
+    required this.onPrivacy,
+    required this.onTerms,
+  });
+
+  final VoidCallback onGuide;
+  final VoidCallback onPrivacy;
+  final VoidCallback onTerms;
+
+  @override
+  Widget build(BuildContext context) {
+    return DepthCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.sm,
+      ),
+      child: Wrap(
+        spacing: AppSpacing.xs,
+        runSpacing: AppSpacing.xs,
+        alignment: WrapAlignment.center,
+        children: [
+          _MiniInfoChip(
+            label: context.t(AppText.welcomeGuide),
+            icon: Icons.menu_book_rounded,
+            onTap: onGuide,
+          ),
+          _MiniInfoChip(
+            label: context.t(AppText.welcomePrivacy),
+            icon: Icons.privacy_tip_rounded,
+            onTap: onPrivacy,
+          ),
+          _MiniInfoChip(
+            label: context.t(AppText.welcomeTerms),
+            icon: Icons.gavel_rounded,
+            onTap: onTerms,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniInfoChip extends StatelessWidget {
+  const _MiniInfoChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF6FF),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: AppPalette.patientPrimary.withValues(alpha: 0.16),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: AppPalette.patientPrimary),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppPalette.text,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginInfoPage extends StatelessWidget {
+  const _LoginInfoPage({required this.topic});
+
+  final _LoginInfoTopic topic;
+
+  String _title(BuildContext context) {
+    switch (topic) {
+      case _LoginInfoTopic.guide:
+        return context.t(AppText.welcomeGuide);
+      case _LoginInfoTopic.privacy:
+        return context.t(AppText.welcomePrivacy);
+      case _LoginInfoTopic.terms:
+        return context.t(AppText.welcomeTerms);
+    }
+  }
+
+  List<_LoginInfoSection> _sections(BuildContext context) {
+    switch (topic) {
+      case _LoginInfoTopic.guide:
+        return [
+          _LoginInfoSection(
+            title: context.tr(ar: 'كيف تبدأ', en: 'How to start'),
+            body: context.tr(
+              ar: 'سجّل الدخول أو أنشئ حسابًا جديدًا، ثم سيتم توجيهك تلقائيًا لواجهة المريض أو الصيدلي أو الإدارة حسب نوع الحساب.',
+              en: 'Sign in or create an account, then you are routed automatically to patient, pharmacist, or admin interface.',
+            ),
+          ),
+          _LoginInfoSection(
+            title: context.tr(ar: 'إدارة الجرعات', en: 'Dose management'),
+            body: context.tr(
+              ar: 'يمكنك إضافة الدواء وتعديل الجرعات وتنفيذ التناول أو التأجيل أو التخطي مع تتبع التاريخ والتنبيهات.',
+              en: 'You can add medicine, edit doses, and perform taken/snooze/skip actions with history and reminders.',
+            ),
+          ),
+        ];
+      case _LoginInfoTopic.privacy:
+        return [
+          _LoginInfoSection(
+            title: context.tr(ar: 'حماية بياناتك', en: 'Data protection'),
+            body: context.tr(
+              ar: 'بيانات الحساب والأدوية تُحفظ في Firebase مع قواعد وصول تمنع الاطلاع على بيانات مستخدمين آخرين.',
+              en: 'Account and medication data are stored in Firebase with rules that prevent cross-user access.',
+            ),
+          ),
+          _LoginInfoSection(
+            title: context.tr(ar: 'استخدام الإشعارات', en: 'Notification use'),
+            body: context.tr(
+              ar: 'الإشعارات تُستخدم للتذكير بالجرعات والتنبيه على قرب نفاد الكمية فقط.',
+              en: 'Notifications are used for dose reminders and low-quantity alerts only.',
+            ),
+          ),
+        ];
+      case _LoginInfoTopic.terms:
+        return [
+          _LoginInfoSection(
+            title: context.tr(ar: 'تنبيه طبي', en: 'Medical notice'),
+            body: context.tr(
+              ar: 'التطبيق أداة تنظيم وتذكير، وليس بديلًا عن الاستشارة الطبية المباشرة.',
+              en: 'The app is an organization/reminder tool and does not replace medical advice.',
+            ),
+          ),
+          _LoginInfoSection(
+            title: context.tr(ar: 'المسؤولية', en: 'Responsibility'),
+            body: context.tr(
+              ar: 'المستخدم مسؤول عن دقة بياناته المدخلة، والإدارة مسؤولة عن اعتماد حسابات الصيادلة.',
+              en: 'Users are responsible for entered data accuracy, and admin manages pharmacist approvals.',
+            ),
+          ),
+        ];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = _sections(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(_title(context))),
+      body: Container(
+        color: const Color(0xFFDDEAFF),
+        child: SafeArea(
+          child: ListView(
+            padding: AppSpacing.pagePadding,
+            children: [
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 640),
+                  child: DepthCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _title(context),
+                          style: const TextStyle(
+                            fontSize: AppFontSize.pageTitle,
+                            fontWeight: FontWeight.w900,
+                            color: AppPalette.text,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        ...sections.map(
+                          (section) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.xs,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(AppSpacing.md),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF6FAFF),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.md,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    section.title,
+                                    style: const TextStyle(
+                                      color: AppPalette.text,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: AppFontSize.bodyLarge,
+                                    ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Text(
+                                    section.body,
+                                    style: const TextStyle(
+                                      color: AppPalette.muted,
+                                      fontSize: AppFontSize.body,
+                                      height: 1.55,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginInfoSection {
+  const _LoginInfoSection({required this.title, required this.body});
+
+  final String title;
+  final String body;
 }
 
 class _ForgotPasswordSheet extends StatefulWidget {
@@ -717,7 +966,10 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       _showSnackBar(
-        _tr(ar: 'أدخل بريدًا إلكترونيًا صالحًا أولًا.', en: 'Enter a valid email first.'),
+        _tr(
+          ar: 'أدخل بريدًا إلكترونيًا صالحًا أولًا.',
+          en: 'Enter a valid email first.',
+        ),
       );
       return;
     }
@@ -750,7 +1002,10 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
     final code = _codeController.text.trim();
     if (email.isEmpty || !email.contains('@') || code.length < 4) {
       _showSnackBar(
-        _tr(ar: 'أدخل البريد والرمز بشكل صحيح.', en: 'Enter email and code correctly.'),
+        _tr(
+          ar: 'أدخل البريد والرمز بشكل صحيح.',
+          en: 'Enter email and code correctly.',
+        ),
       );
       return;
     }
@@ -827,7 +1082,10 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
-                    labelText: _tr(ar: 'البريد الإلكتروني', en: 'Email address'),
+                    labelText: _tr(
+                      ar: 'البريد الإلكتروني',
+                      en: 'Email address',
+                    ),
                     prefixIcon: const Icon(Icons.mail_outline_rounded),
                   ),
                 ),
@@ -835,7 +1093,10 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                 TextFormField(
                   controller: _codeController,
                   decoration: InputDecoration(
-                    labelText: _tr(ar: 'رمز الوصول من الإدارة', en: 'Admin access code'),
+                    labelText: _tr(
+                      ar: 'رمز الوصول من الإدارة',
+                      en: 'Admin access code',
+                    ),
                     prefixIcon: const Icon(Icons.key_rounded),
                   ),
                 ),
@@ -948,14 +1209,18 @@ class _RoleChip extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: selected ? AppPalette.patientPrimary : AppPalette.muted,
+                  color: selected
+                      ? AppPalette.patientPrimary
+                      : AppPalette.muted,
                   size: 19,
                 ),
                 const SizedBox(width: 7),
                 Text(
                   label,
                   style: TextStyle(
-                    color: selected ? AppPalette.patientPrimary : AppPalette.text,
+                    color: selected
+                        ? AppPalette.patientPrimary
+                        : AppPalette.text,
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
@@ -1027,8 +1292,14 @@ class _GoogleButton extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             isLoading
-                ? context.tr(ar: 'جارٍ الاتصال بـ Google...', en: 'Connecting to Google...')
-                : context.tr(ar: 'تسجيل الدخول باستخدام Google', en: 'Continue with Google'),
+                ? context.tr(
+                    ar: 'جارٍ الاتصال بـ Google...',
+                    en: 'Connecting to Google...',
+                  )
+                : context.tr(
+                    ar: 'تسجيل الدخول باستخدام Google',
+                    en: 'Continue with Google',
+                  ),
           ),
         ],
       ),
