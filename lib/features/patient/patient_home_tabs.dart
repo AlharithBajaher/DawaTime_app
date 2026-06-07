@@ -660,6 +660,28 @@ class _SimplePage extends StatelessWidget {
   }
 }
 
+class _MedicationReportsLivePage extends StatelessWidget {
+  const _MedicationReportsLivePage({required this.fallbackMedications});
+
+  final List<MedicationModel> fallbackMedications;
+  static final MedicationService _medicationService = MedicationService();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<MedicationModel>>(
+      stream: _medicationService.getUserMedicationReports(),
+      builder: (context, snapshot) {
+        final reportMedications = snapshot.data ?? const <MedicationModel>[];
+        return _MedicationReportsPage(
+          medications: reportMedications.isNotEmpty
+              ? reportMedications
+              : fallbackMedications,
+        );
+      },
+    );
+  }
+}
+
 class _MedicationReportsPage extends StatelessWidget {
   const _MedicationReportsPage({required this.medications});
 
@@ -790,6 +812,7 @@ class _MedicationReportsPage extends StatelessWidget {
 
       rows.add(
         _MedicineReportRowData(
+          medication: medication,
           name: medication.name,
           taken: taken,
           scheduled: scheduled,
@@ -825,6 +848,19 @@ class _MedicationReportsPage extends StatelessWidget {
     return createdDate.isAfter(windowStartDate)
         ? createdDate
         : windowStartDate;
+  }
+
+  Future<void> _openMonthCalendar(
+    BuildContext context,
+    MedicationModel medication,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MedicationMonthCalendarSheet(medication: medication),
+    );
   }
 
   @override
@@ -943,27 +979,61 @@ class _MedicationReportsPage extends StatelessWidget {
                     ...medicineRows.take(6).map(
                       (row) => Padding(
                         padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                row.name,
-                                style: const TextStyle(
-                                  color: AppPalette.text,
-                                  fontSize: AppFontSize.bodyLarge,
-                                  fontWeight: FontWeight.w800,
+                        child: Container(
+                          padding: const EdgeInsets.all(AppSpacing.sm),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF6FAFF),
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
+                            border: Border.all(color: const Color(0xFFDCE7F8)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      row.name,
+                                      style: const TextStyle(
+                                        color: AppPalette.text,
+                                        fontSize: AppFontSize.bodyLarge,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '${(row.adherenceRate * 100).round()}%',
+                                    style: const TextStyle(
+                                      color: AppPalette.patientPrimary,
+                                      fontSize: AppFontSize.body,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              Align(
+                                alignment: context.isArabic
+                                    ? Alignment.centerLeft
+                                    : Alignment.centerRight,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _openMonthCalendar(
+                                    context,
+                                    row.medication,
+                                  ),
+                                  icon: const Icon(
+                                    Icons.calendar_month_rounded,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    context.tr(
+                                      ar: 'تقويم الشهر',
+                                      en: 'Month calendar',
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                            Text(
-                              '${(row.adherenceRate * 100).round()}%',
-                              style: const TextStyle(
-                                color: AppPalette.patientPrimary,
-                                fontSize: AppFontSize.body,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1064,16 +1134,313 @@ class _AdherenceReportCard extends StatelessWidget {
 
 class _MedicineReportRowData {
   const _MedicineReportRowData({
+    required this.medication,
     required this.name,
     required this.taken,
     required this.scheduled,
   });
 
+  final MedicationModel medication;
   final String name;
   final int taken;
   final int scheduled;
 
   double get adherenceRate => scheduled == 0 ? 0 : taken / scheduled;
+}
+
+enum _MedicationDayState { none, upcoming, taken, notTaken }
+
+class _MedicationMonthCalendarSheet extends StatefulWidget {
+  const _MedicationMonthCalendarSheet({required this.medication});
+
+  final MedicationModel medication;
+
+  @override
+  State<_MedicationMonthCalendarSheet> createState() =>
+      _MedicationMonthCalendarSheetState();
+}
+
+class _MedicationMonthCalendarSheetState
+    extends State<_MedicationMonthCalendarSheet> {
+  int _monthOffset = 0;
+
+  DateTime get _displayMonth {
+    final now = DateTime.now().toLocal();
+    return DateTime(now.year, now.month + _monthOffset, 1);
+  }
+
+  String _monthLabel(BuildContext context, DateTime month) {
+    const arMonths = [
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
+    ];
+    const enMonths = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    final monthName = context.isArabic
+        ? arMonths[month.month - 1]
+        : enMonths[month.month - 1];
+    return '$monthName ${month.year}';
+  }
+
+  _MedicationDayState _dayState(DateTime day) {
+    if (!widget.medication.isScheduledOnDate(day)) {
+      return _MedicationDayState.none;
+    }
+
+    final now = DateTime.now().toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    if (day.isAfter(today)) {
+      return _MedicationDayState.upcoming;
+    }
+
+    var dueCount = 0;
+    var takenCount = 0;
+    final doseTimes = widget.medication.sortedDoseTimes;
+    for (final dose in doseTimes) {
+      final scheduledAt = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        dose.hour,
+        dose.minute,
+      );
+      if (day == today && scheduledAt.isAfter(now)) {
+        continue;
+      }
+      dueCount += 1;
+      if (widget.medication.isDoseTaken(scheduledAt)) {
+        takenCount += 1;
+      }
+    }
+
+    if (dueCount == 0) {
+      return _MedicationDayState.upcoming;
+    }
+    return takenCount >= dueCount
+        ? _MedicationDayState.taken
+        : _MedicationDayState.notTaken;
+  }
+
+  Widget _statusIconForState(_MedicationDayState state) {
+    switch (state) {
+      case _MedicationDayState.taken:
+        return const Icon(
+          Icons.check_circle_rounded,
+          color: Color(0xFF1FA65A),
+          size: 14,
+        );
+      case _MedicationDayState.notTaken:
+        return const Icon(
+          Icons.cancel_rounded,
+          color: Color(0xFFE24C4B),
+          size: 14,
+        );
+      case _MedicationDayState.upcoming:
+        return const Icon(
+          Icons.remove_circle_outline_rounded,
+          color: Color(0xFFB0B9C6),
+          size: 14,
+        );
+      case _MedicationDayState.none:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Color _backgroundForState(_MedicationDayState state) {
+    switch (state) {
+      case _MedicationDayState.taken:
+        return const Color(0xFFE9F9EF);
+      case _MedicationDayState.notTaken:
+        return const Color(0xFFFFF0F0);
+      case _MedicationDayState.upcoming:
+        return const Color(0xFFF7F9FC);
+      case _MedicationDayState.none:
+        return Colors.transparent;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final month = _displayMonth;
+    final firstDay = DateTime(month.year, month.month, 1);
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final leadingBlanks = firstDay.weekday % 7;
+    final totalCells = leadingBlanks + daysInMonth;
+    final trailingBlanks = (7 - (totalCells % 7)) % 7;
+    final totalGrid = totalCells + trailingBlanks;
+
+    final weekLabels = context.isArabic
+        ? const ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س']
+        : const ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: AppLayout.maxSheetWidth),
+          child: DepthCard(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => setState(() => _monthOffset -= 1),
+                      icon: const Icon(Icons.chevron_left_rounded),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _monthLabel(context, month),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: AppFontSize.sectionTitle,
+                          fontWeight: FontWeight.w900,
+                          color: AppPalette.text,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setState(() => _monthOffset += 1),
+                      icon: const Icon(Icons.chevron_right_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  widget.medication.name,
+                  style: const TextStyle(
+                    color: AppPalette.muted,
+                    fontSize: AppFontSize.body,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Row(
+                  children: weekLabels
+                      .map(
+                        (label) => Expanded(
+                          child: Text(
+                            label,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppPalette.patientPrimary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: AppFontSize.caption,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: totalGrid,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    childAspectRatio: 1.05,
+                  ),
+                  itemBuilder: (context, index) {
+                    if (index < leadingBlanks || index >= totalCells) {
+                      return const SizedBox.shrink();
+                    }
+                    final dayNumber = index - leadingBlanks + 1;
+                    final dayDate = DateTime(month.year, month.month, dayNumber);
+                    final state = _dayState(dayDate);
+                    final statusIcon = _statusIconForState(state);
+                    final bgColor = _backgroundForState(state);
+
+                    return Container(
+                      margin: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                        border: Border.all(color: const Color(0xFFE2EAF6)),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$dayNumber',
+                            style: const TextStyle(
+                              fontSize: AppFontSize.caption,
+                              fontWeight: FontWeight.w800,
+                              color: AppPalette.text,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          statusIcon,
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: Color(0xFF1FA65A),
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      context.tr(ar: 'تم التناول', en: 'Taken'),
+                      style: const TextStyle(
+                        color: AppPalette.muted,
+                        fontSize: AppFontSize.caption,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    const Icon(
+                      Icons.cancel_rounded,
+                      color: Color(0xFFE24C4B),
+                      size: 14,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      context.tr(ar: 'لم يتم التناول', en: 'Not taken'),
+                      style: const TextStyle(
+                        color: AppPalette.muted,
+                        fontSize: AppFontSize.caption,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _ReportMetric extends StatelessWidget {

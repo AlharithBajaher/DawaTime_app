@@ -47,8 +47,11 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
   String _welcomeDisplayName = '';
   String _catalogSearchQuery = '';
   String _lastReminderSyncSignature = '';
+  String _lastReportSyncSignature = '';
   bool _isReminderSyncRunning = false;
+  bool _isReportSyncRunning = false;
   bool _reminderSyncQueued = false;
+  bool _reportSyncQueued = false;
   Timer? _reminderSyncDebounce;
   List<MedicationModel> _pendingReminderMedications = const <MedicationModel>[];
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -71,7 +74,10 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted) {
       // Force a one-time resync after app resume to keep reminders aligned.
-      setState(() => _lastReminderSyncSignature = '');
+      setState(() {
+        _lastReminderSyncSignature = '';
+        _lastReportSyncSignature = '';
+      });
     }
   }
 
@@ -302,6 +308,57 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
         return;
       }
       _synchronizeMedicationReminders(_pendingReminderMedications);
+    });
+  }
+
+  Future<void> _synchronizeMedicationReports(
+    List<MedicationModel> medications,
+  ) async {
+    final signature = medications
+        .map(
+          (medication) =>
+              '${medication.id}:${medication.name}:${medication.quantity}:${medication.remainingQuantity}:${medication.takenDoseLogs.length}:${medication.skippedDoseLogs.length}',
+        )
+        .join('|');
+
+    if (signature.isEmpty || signature == _lastReportSyncSignature) {
+      return;
+    }
+    if (_isReportSyncRunning) {
+      _reportSyncQueued = true;
+      return;
+    }
+
+    _isReportSyncRunning = true;
+    _lastReportSyncSignature = signature;
+    try {
+      for (final medication in medications) {
+        await _medicationService.syncMedicationReportFromMedication(medication);
+      }
+    } catch (_) {
+      _lastReportSyncSignature = '';
+    } finally {
+      _isReportSyncRunning = false;
+      if (_reportSyncQueued && mounted) {
+        _reportSyncQueued = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _synchronizeMedicationReports(medications);
+          }
+        });
+      }
+    }
+  }
+
+  void _queueMedicationReportsSync(List<MedicationModel> medications) {
+    if (medications.isEmpty) {
+      return;
+    }
+    Future<void>.delayed(const Duration(milliseconds: 450), () {
+      if (!mounted) {
+        return;
+      }
+      _synchronizeMedicationReports(medications);
     });
   }
 
@@ -947,7 +1004,9 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
           },
           onOpenReports: () {
             _openPlaceholderPage(
-              _MedicationReportsPage(medications: medicationHistory),
+              _MedicationReportsLivePage(
+                fallbackMedications: medicationHistory,
+              ),
             );
           },
         );
@@ -988,6 +1047,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
             final timeline = _timelineForDate(medications, _selectedDate);
 
             _queueReminderSync(medications);
+            _queueMedicationReportsSync(allMedications);
 
             return StreamBuilder<List<SharedMedicineModel>>(
               stream: _sharedMedicineService.watchMarketplaceMedicines(),

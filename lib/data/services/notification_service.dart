@@ -635,6 +635,9 @@ class NotificationService {
     final medicationRef = firestore
         .collection('medications')
         .doc(payload.medicationId);
+    final reportRef = firestore
+        .collection('medication_reports')
+        .doc(payload.medicationId);
     final snapshot = await medicationRef.get(
       const GetOptions(source: Source.serverAndCache),
     );
@@ -665,6 +668,7 @@ class NotificationService {
       );
       if (takenLogs.containsKey(key)) {
         result = _DoseStatusResult(
+          archivedMedication: currentRemaining <= 0,
           notificationIds: notificationIds,
           remainingQuantity: currentRemaining,
           medicationData: data,
@@ -679,13 +683,30 @@ class NotificationService {
           data['skippedDoseLogs'] as Map<String, dynamic>? ??
               const <String, dynamic>{},
         )..remove(key);
-        await medicationRef.set({
-          'takenDoseLogs': nextTakenLogs,
-          'skippedDoseLogs': nextSkippedLogs,
-          'remainingQuantity': shouldArchive ? 0 : nextRemaining,
-          'isArchived': shouldArchive,
-          'archivedAt': shouldArchive ? Timestamp.fromDate(now) : null,
-        }, SetOptions(merge: true));
+        final reportPayload = _buildMedicationReportPayloadFromData(
+          medicationId: payload.medicationId,
+          medicationData: data,
+          takenDoseLogs: nextTakenLogs,
+          skippedDoseLogs: nextSkippedLogs,
+          remainingQuantity: shouldArchive ? 0 : nextRemaining,
+          isArchived: shouldArchive,
+          archivedAt: shouldArchive ? now : null,
+          isDeleted: shouldArchive,
+          deletedReason: shouldArchive ? 'out_of_stock' : null,
+          deletedAt: shouldArchive ? now : null,
+        );
+        await reportRef.set(reportPayload, SetOptions(merge: true));
+        if (shouldArchive) {
+          await medicationRef.delete();
+        } else {
+          await medicationRef.set({
+            'takenDoseLogs': nextTakenLogs,
+            'skippedDoseLogs': nextSkippedLogs,
+            'remainingQuantity': nextRemaining,
+            'isArchived': false,
+            'archivedAt': null,
+          }, SetOptions(merge: true));
+        }
         result = _DoseStatusResult(
           archivedMedication: shouldArchive,
           notificationIds: notificationIds,
@@ -707,6 +728,15 @@ class NotificationService {
         'skippedDoseLogs': nextSkippedLogs,
         'takenDoseLogs': nextTakenLogs,
       }, SetOptions(merge: true));
+      await reportRef.set(
+        _buildMedicationReportPayloadFromData(
+          medicationId: payload.medicationId,
+          medicationData: data,
+          takenDoseLogs: nextTakenLogs,
+          skippedDoseLogs: nextSkippedLogs,
+        ),
+        SetOptions(merge: true),
+      );
       result = _DoseStatusResult(
         notificationIds: notificationIds,
         remainingQuantity: currentRemaining,
@@ -716,6 +746,20 @@ class NotificationService {
     }
 
     if (result.archivedMedication) {
+      await reportRef.set(
+        _buildMedicationReportPayloadFromData(
+          medicationId: payload.medicationId,
+          medicationData: data,
+          isDeleted: true,
+          deletedReason: 'out_of_stock',
+          deletedAt: now,
+          isArchived: true,
+          archivedAt: now,
+          remainingQuantity: 0,
+        ),
+        SetOptions(merge: true),
+      );
+      await medicationRef.delete();
       if (result.notificationIds.isNotEmpty) {
         await cancelNotifications(result.notificationIds);
       }
@@ -752,6 +796,65 @@ class NotificationService {
       body: '$medicationName stock is running low. Please refill soon.',
       reminderAt: reminderAt,
     );
+  }
+
+  static Map<String, dynamic> _buildMedicationReportPayloadFromData({
+    required String medicationId,
+    required Map<String, dynamic> medicationData,
+    Map<String, dynamic>? takenDoseLogs,
+    Map<String, dynamic>? skippedDoseLogs,
+    int? remainingQuantity,
+    bool? isArchived,
+    DateTime? archivedAt,
+    bool? isDeleted,
+    String? deletedReason,
+    DateTime? deletedAt,
+  }) {
+    final userId = medicationData['userId'] as String? ?? '';
+    final currentTakenLogs =
+        takenDoseLogs ??
+        Map<String, dynamic>.from(
+          medicationData['takenDoseLogs'] as Map<String, dynamic>? ??
+              const <String, dynamic>{},
+        );
+    final currentSkippedLogs =
+        skippedDoseLogs ??
+        Map<String, dynamic>.from(
+          medicationData['skippedDoseLogs'] as Map<String, dynamic>? ??
+              const <String, dynamic>{},
+        );
+    final resolvedCreatedAt = medicationData['createdAt'];
+
+    return {
+      'userId': userId,
+      'sourceMedicationId': medicationId,
+      'name': medicationData['name'],
+      'dose': medicationData['dose'],
+      'form': medicationData['form'],
+      'quantity': medicationData['quantity'],
+      'remainingQuantity':
+          remainingQuantity ??
+          ((medicationData['remainingQuantity'] as num?)?.toInt() ??
+              (medicationData['quantity'] as num?)?.toInt() ??
+              0),
+      'doseUnit': medicationData['doseUnit'],
+      'time': medicationData['time'],
+      'hour': medicationData['hour'],
+      'minute': medicationData['minute'],
+      'frequency': medicationData['frequency'],
+      'doseTimes': medicationData['doseTimes'] ?? const <dynamic>[],
+      'intervalDays': medicationData['intervalDays'],
+      'notificationIds': medicationData['notificationIds'] ?? const <dynamic>[],
+      'takenDoseLogs': currentTakenLogs,
+      'skippedDoseLogs': currentSkippedLogs,
+      'isArchived': isArchived ?? (medicationData['isArchived'] as bool? ?? false),
+      'archivedAt': archivedAt == null ? medicationData['archivedAt'] : Timestamp.fromDate(archivedAt),
+      'isDeleted': isDeleted ?? false,
+      'deletedReason': deletedReason,
+      'deletedAt': deletedAt == null ? null : Timestamp.fromDate(deletedAt),
+      'createdAt': resolvedCreatedAt ?? FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
   }
 
   static DateTime? _estimateLowStockReminderDateFromData(

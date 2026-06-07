@@ -27,6 +27,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
     return const WelcomePortal(autoFinishAfter: Duration(days: 1));
   }
 
+  Widget _nonAuthHoldingShell() {
+    if (_lastResolvedShell is LoginScreen) {
+      return _buildHoldingGuideScreen();
+    }
+    return _lastResolvedShell ?? _buildHoldingGuideScreen();
+  }
+
   void _ensureAdminProfileInBackground(User user) {
     if (_adminEnsureStarted.contains(user.uid)) {
       return;
@@ -62,7 +69,8 @@ class _AuthWrapperState extends State<AuthWrapper> {
       builder: (context, snapshot) {
         final liveUser = snapshot.data ?? FirebaseAuth.instance.currentUser;
 
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (liveUser == null &&
+            snapshot.connectionState == ConnectionState.waiting) {
           if (_lastResolvedShell != null) {
             return _lastResolvedShell!;
           }
@@ -83,11 +91,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
             final profile = profileSnapshot.data;
             if (profile == null &&
                 profileSnapshot.connectionState == ConnectionState.waiting) {
-              return _lastResolvedShell ?? _buildHoldingGuideScreen();
+              return _nonAuthHoldingShell();
             }
 
             if (profile == null) {
-              return _lastResolvedShell ?? remember(const LoginScreen());
+              return _nonAuthHoldingShell();
             }
 
             if (profile.needsAdminApproval) {

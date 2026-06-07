@@ -41,6 +41,57 @@ class SupportCenterSheet {
       builder: (_) => const _DeveloperContentSheet(),
     );
   }
+
+  static Future<void> copyContactValue(
+    BuildContext context,
+    String value,
+  ) async {
+    await _ContactActionLauncher.copyValue(context: context, value: value);
+  }
+
+  static Future<void> openPhone(
+    BuildContext context,
+    String value,
+  ) async {
+    await _ContactActionLauncher.open(
+      context: context,
+      type: _ContactActionType.phone,
+      value: value,
+    );
+  }
+
+  static Future<void> openWhatsapp(
+    BuildContext context,
+    String value,
+  ) async {
+    await _ContactActionLauncher.open(
+      context: context,
+      type: _ContactActionType.whatsapp,
+      value: value,
+    );
+  }
+
+  static Future<void> openEmail(
+    BuildContext context,
+    String value,
+  ) async {
+    await _ContactActionLauncher.open(
+      context: context,
+      type: _ContactActionType.email,
+      value: value,
+    );
+  }
+
+  static Future<void> openLink(
+    BuildContext context,
+    String value,
+  ) async {
+    await _ContactActionLauncher.open(
+      context: context,
+      type: _ContactActionType.link,
+      value: value,
+    );
+  }
 }
 
 class _SupportContentSheet extends StatelessWidget {

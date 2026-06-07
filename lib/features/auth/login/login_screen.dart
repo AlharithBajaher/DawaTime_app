@@ -648,8 +648,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'التواصل بالإدارة',
-                                  style: TextStyle(
+                                  _tr(ar: 'التواصل بالإدارة', en: 'Contact admin'),
+                                  style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     color: AppPalette.text,
                                   ),
