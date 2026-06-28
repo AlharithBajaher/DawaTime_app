@@ -15,6 +15,7 @@ class PharmacyService {
     required String itemName,
     required int quantity,
     required int minQuantity,
+    bool isArabic = false,
   }) async {
     try {
       await NotificationService.syncInventoryAlert(
@@ -22,6 +23,7 @@ class PharmacyService {
         itemName: itemName,
         quantity: quantity,
         minQuantity: minQuantity,
+        isArabic: isArabic,
       );
     } catch (_) {
       // Keep inventory CRUD reliable even if local alert sync fails.

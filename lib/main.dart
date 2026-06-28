@@ -13,25 +13,45 @@ import 'firebase_options.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialise Firebase first — required before any Firestore/Auth call.
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
-  if (!kDebugMode) {
-    try {
-      await FirebaseAppCheck.instance
-          .activate(
-            androidProvider: AndroidProvider.playIntegrity,
-            appleProvider: AppleProvider.appAttestWithDeviceCheckFallback,
-          )
-          .timeout(const Duration(seconds: 10));
-    } catch (_) {
-      // Keep app startup resilient even if App Check provider is temporarily unavailable.
-    }
-  }
+
+  // Enable Firestore offline persistence.
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
+  // Initialise local notifications synchronously (channel setup).
   await NotificationService.init();
+
+  // App Check and any optional services run in the background — they must
+  // not block the first frame.
+  _initOptionalServicesInBackground();
 
   runApp(const DawaTimeApp());
 }
 
+/// Runs non-critical initialisation after the first frame is drawn.
+void _initOptionalServicesInBackground() {
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    if (!kDebugMode) {
+      try {
+        await FirebaseAppCheck.instance
+            .activate(
+              androidProvider: AndroidProvider.playIntegrity,
+              appleProvider: AppleProvider.appAttestWithDeviceCheckFallback,
+            )
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {
+        // Non-fatal: App Check not available on this device/configuration.
+      }
+    }
+  });
+}
+
+// =============================================================================
 class DawaTimeApp extends StatefulWidget {
   const DawaTimeApp({super.key});
 

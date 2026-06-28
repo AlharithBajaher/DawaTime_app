@@ -5,6 +5,7 @@ import '../../app/theme/app_metrics.dart';
 import '../../app/theme/app_theme.dart';
 import '../../app/widgets/depth_card.dart';
 import '../../app/widgets/support_center_sheet.dart';
+import 'backup_screen.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -94,6 +95,50 @@ class SettingsPage extends StatelessWidget {
                           onTap: () {
                             localeController.updateLocale(const Locale('en'));
                           },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  DepthCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.tr(
+                            ar: 'النسخ الاحتياطي',
+                            en: 'Backup & restore',
+                          ),
+                          style: const TextStyle(
+                            fontSize: AppFontSize.title,
+                            fontWeight: FontWeight.w800,
+                            color: AppPalette.text,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          context.tr(
+                            ar: 'احفظ بياناتك أو استعدها من نسخة سابقة',
+                            en: 'Backup your data or restore from a previous backup',
+                          ),
+                          style: const TextStyle(
+                            color: AppPalette.muted,
+                            fontSize: AppFontSize.body,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _SettingsActionTile(
+                          icon: Icons.backup_rounded,
+                          label: context.tr(
+                            ar: 'إدارة النسخ الاحتياطي',
+                            en: 'Manage backup & restore',
+                          ),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const BackupScreen(),
+                            ),
+                          ),
                         ),
                       ],
                     ),

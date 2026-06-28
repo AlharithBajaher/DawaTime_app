@@ -1,0 +1,100 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // =========================================================================
+    // Auth helpers
+    // =========================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrapAdmin() {
+      return isSignedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email == "hsab7164@gmail.com";
+    }
+
+    function callerUserPath() {
+      return /databases/(default)/documents/users/$(request.auth.uid);
+    }
+
+    function callerUserExists() {
+      return isSignedIn() && firestore.exists(callerUserPath());
+    }
+
+    function callerUser() {
+      return firestore.get(callerUserPath());
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin()
+        || (callerUserExists() && callerUser().data.role == "admin");
+    }
+
+    function isApprovedPharmacist() {
+      return callerUserExists()
+        && callerUser().data.role == "pharmacist"
+        && callerUser().data.approvalStatus == "approved";
+    }
+
+    // =========================================================================
+    // Shared medicine images
+    // Path: /shared_medicines/{medicineId}/{fileName}
+    // =========================================================================
+    match /shared_medicines/{medicineId}/{fileName} {
+
+      // Any signed-in user can view medicine images
+      allow read: if isSignedIn();
+
+      // Only an approved pharmacist can upload images.
+      // Firestore doc is created AFTER the upload, so we skip the existence check here.
+      allow create: if isApprovedPharmacist();
+
+      // Same pharmacist can overwrite (re-upload) or delete
+      allow update, delete: if isApprovedPharmacist()
+        && firestore.exists(
+             /databases/(default)/documents/shared_medicines/$(medicineId))
+        && firestore.get(
+             /databases/(default)/documents/shared_medicines/$(medicineId))
+               .data.pharmacistId == request.auth.uid;
+    }
+
+    // =========================================================================
+    // User profile photos
+    // Path: /users/{userId}/{fileName}
+    // =========================================================================
+    match /users/{userId}/{fileName} {
+
+      // Any signed-in user can view profile photos
+      allow read: if isSignedIn();
+
+      // Only the user themselves can upload their profile photo
+      allow create: if isOwner(userId);
+
+      // User can overwrite or delete their own photo
+      allow update, delete: if isOwner(userId);
+    }
+
+    // =========================================================================
+    // Backup files
+    // Path: /backups/{userId}/{fileName}
+    // =========================================================================
+    match /backups/{userId}/{fileName} {
+
+      // User can view their own backups
+      allow read: if isOwner(userId) || isAdmin();
+
+      // User can upload backup files to their own folder
+      allow create: if isOwner(userId);
+
+      // User can overwrite or delete their own backups
+      allow update, delete: if isOwner(userId);
+    }
+  }
+}

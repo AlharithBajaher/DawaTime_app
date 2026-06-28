@@ -1,6 +1,5 @@
 part of 'pharmacist_home.dart';
 
-// تبويب إدارة المخزون: يعرض كل العناصر ويتيح التحكم المباشر بالكمية.
 class _WorkflowTabModern extends StatelessWidget {
   const _WorkflowTabModern({
     required this.tasks,
@@ -74,7 +73,6 @@ class _InventoryStockCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  // callbacks جاهزة من الصفحة الأم لتنفيذ (تعديل/حذف/زيادة/نقصان/تغيير حالة النفاد).
   final PharmacyTaskModel task;
   final Future<void> Function(PharmacyTaskModel) onToggle;
   final Future<void> Function(PharmacyTaskModel task, int delta) onAdjust;

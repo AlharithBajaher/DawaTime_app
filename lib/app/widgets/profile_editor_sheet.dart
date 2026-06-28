@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../data/models/app_user_model.dart';
 import '../localization/app_localization.dart';
@@ -20,8 +23,10 @@ Future<void> showProfileEditorSheet({
     String? pharmacyName,
     String? pharmacyLocation,
     String? pharmacyPhone,
+    String? photoUrl,
   })
   onSaveProfile,
+  Future<String> Function(Uint8List imageBytes)? onUploadPhoto,
 }) async {
   await showModalBottomSheet<void>(
     context: context,
@@ -36,6 +41,7 @@ Future<void> showProfileEditorSheet({
       accentColor: accentColor,
       showPharmacyFields: showPharmacyFields,
       onSaveProfile: onSaveProfile,
+      onUploadPhoto: onUploadPhoto,
     ),
   );
 }
@@ -50,6 +56,7 @@ class ProfileEditorSheet extends StatefulWidget {
     required this.accentColor,
     required this.showPharmacyFields,
     required this.onSaveProfile,
+    this.onUploadPhoto,
   });
 
   final AppUserModel? profile;
@@ -64,20 +71,26 @@ class ProfileEditorSheet extends StatefulWidget {
     String? pharmacyName,
     String? pharmacyLocation,
     String? pharmacyPhone,
+    String? photoUrl,
   })
   onSaveProfile;
+  final Future<String> Function(Uint8List imageBytes)? onUploadPhoto;
 
   @override
   State<ProfileEditorSheet> createState() => _ProfileEditorSheetState();
 }
 
 class _ProfileEditorSheetState extends State<ProfileEditorSheet> {
+  final ImagePicker _imagePicker = ImagePicker();
   late final TextEditingController _nameController;
   late final TextEditingController _usernameController;
   late final TextEditingController _pharmacyNameController;
   late final TextEditingController _pharmacyLocationController;
   late final TextEditingController _pharmacyPhoneController;
   bool _isSaving = false;
+  Uint8List? _pickedImageBytes;
+  String? _newPhotoUrl;
+  bool _isUploadingPhoto = false;
 
   String get _resolvedName =>
       widget.profile?.displayName.trim().isNotEmpty == true
@@ -130,6 +143,48 @@ class _ProfileEditorSheetState extends State<ProfileEditorSheet> {
     super.dispose();
   }
 
+  Future<void> _pickAndUploadPhoto() async {
+    final pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1024,
+    );
+    if (pickedFile == null) return;
+
+    final bytes = await pickedFile.readAsBytes();
+    if (!mounted) return;
+
+    final uploader = widget.onUploadPhoto;
+    if (uploader == null) {
+      setState(() => _pickedImageBytes = bytes);
+      return;
+    }
+
+    setState(() => _isUploadingPhoto = true);
+    try {
+      final url = await uploader(bytes);
+      if (!mounted) return;
+      setState(() {
+        _pickedImageBytes = bytes;
+        _newPhotoUrl = url;
+        _isUploadingPhoto = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isUploadingPhoto = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.tr(
+              ar: 'تعذر رفع الصورة. حاول مرة أخرى.',
+              en: 'Could not upload photo. Try again.',
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _saveProfile() async {
     setState(() => _isSaving = true);
     try {
@@ -145,6 +200,7 @@ class _ProfileEditorSheetState extends State<ProfileEditorSheet> {
         pharmacyPhone: widget.showPharmacyFields
             ? _pharmacyPhoneController.text.trim()
             : null,
+        photoUrl: _newPhotoUrl,
       );
 
       if (!mounted) {
@@ -233,24 +289,70 @@ class _ProfileEditorSheetState extends State<ProfileEditorSheet> {
                   children: [
                     Row(
                       children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundColor: Colors.white24,
-                          backgroundImage: photoUrl != null && photoUrl.isNotEmpty
-                              ? NetworkImage(photoUrl)
-                              : null,
-                          child: photoUrl == null || photoUrl.isEmpty
-                              ? Text(
-                                  _resolvedInitials,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: AppFontSize.sectionTitle,
-                                    fontWeight: FontWeight.w900,
+                      GestureDetector(
+                        onTap: _isUploadingPhoto ? null : _pickAndUploadPhoto,
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 24,
+                              backgroundColor: Colors.white24,
+                              backgroundImage: _pickedImageBytes != null
+                                  ? MemoryImage(_pickedImageBytes!)
+                                  : (photoUrl != null && photoUrl.isNotEmpty
+                                      ? NetworkImage(photoUrl)
+                                      : null),
+                              child: _pickedImageBytes == null &&
+                                      (photoUrl == null || photoUrl.isEmpty)
+                                  ? Text(
+                                      _resolvedInitials,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: AppFontSize.sectionTitle,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.camera_alt_rounded,
+                                  size: 13,
+                                  color: widget.accentColor,
+                                ),
+                              ),
+                            ),
+                            if (_isUploadingPhoto)
+                              Positioned.fill(
+                                child: Container(
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black26,
+                                    shape: BoxShape.circle,
                                   ),
-                                )
-                              : null,
+                                  child: const Center(
+                                    child: SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        const Spacer(),
+                      ),
+                      const Spacer(),
                         IconButton(
                           onPressed: () => Navigator.of(context).maybePop(),
                           icon: const Icon(Icons.close_rounded, color: Colors.white),

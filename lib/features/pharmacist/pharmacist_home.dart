@@ -10,20 +10,21 @@ import '../../app/widgets/home_navigation_chrome.dart';
 import '../../app/widgets/profile_editor_sheet.dart';
 import '../../app/widgets/profile_side_drawer.dart';
 import '../../data/models/app_user_model.dart';
+import '../../data/models/pharmacy_rating_model.dart';
 import '../../data/models/pharmacy_task_model.dart';
 import '../../data/models/shared_medicine_model.dart';
 import '../../data/services/auth_service.dart';
+import '../../data/services/pharmacy_rating_service.dart';
 import '../../data/services/pharmacy_service.dart';
 import '../../data/services/shared_medicine_service.dart';
 import '../settings/settings_page.dart';
+import 'pharmacist_inventory_editor_page.dart';
 import 'pharmacist_medicine_editor_page.dart';
 
 part 'pharmacist_home_sections.dart';
-part 'pharmacist_home_editor.dart';
 part 'pharmacist_medicine_tab.dart';
 part 'pharmacist_inventory_tab.dart';
 
-// حشوة موحدة لصفحات الصيدلي لضمان شكل متناسق في كل التبويبات.
 const EdgeInsets _pharmacistPagePadding = EdgeInsets.fromLTRB(
   AppSpacing.lg,
   AppSpacing.xs,
@@ -39,20 +40,17 @@ class PharmacistHome extends StatefulWidget {
 }
 
 class _PharmacistHomeState extends State<PharmacistHome> {
-  // خدمات التطبيق المستخدمة في صفحة الصيدلي.
   final AuthService _authService = AuthService();
   final PharmacyService _pharmacyService = PharmacyService();
+  final PharmacyRatingService _pharmacyRatingService = PharmacyRatingService();
   final SharedMedicineService _sharedMedicineService = SharedMedicineService();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  // حالات الواجهة الحالية (التبويب، الحفظ، وإظهار بانر الترحيب).
   int _selectedIndex = 0;
-  bool _isSaving = false;
   bool _hasWelcomedUser = false;
   bool _welcomeBannerVisible = false;
   String _welcomeDisplayName = '';
 
-  // متابعة ملف المستخدم الحالي بشكل مباشر من قاعدة البيانات.
   Stream<AppUserModel?> _watchCurrentProfile() {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
@@ -62,7 +60,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     return _authService.watchUserProfile(uid);
   }
 
-  // استخراج اسم احتياطي من البريد إذا كان الاسم غير متوفر.
   String _fallbackPharmacistName(BuildContext context) {
     final email = FirebaseAuth.instance.currentUser?.email ?? '';
     final fallback = email
@@ -75,7 +72,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         : fallback;
   }
 
-  // تفعيل بانر الترحيب مرة واحدة عند أول فتح للواجهة.
   void _syncWelcomeBanner(String displayName) {
     if (_hasWelcomedUser) {
       return;
@@ -100,62 +96,13 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     });
   }
 
-  // فتح نافذة إضافة/تعديل عنصر مخزون.
   Future<void> _openTaskEditor([PharmacyTaskModel? task]) async {
-    final draft = await showModalBottomSheet<_TaskDraft>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => _TaskEditorSheet(existing: task),
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PharmacistInventoryEditorPage(existing: task),
+      ),
     );
-
-    if (draft == null) {
-      return;
-    }
-
-    setState(() => _isSaving = true);
-    try {
-      if (task == null) {
-        await _pharmacyService.addTask(
-          title: draft.title,
-          details: draft.details,
-          category: draft.category,
-          priority: draft.priority,
-          quantity: draft.quantity,
-          minQuantity: draft.minQuantity,
-          unit: draft.unit,
-        );
-      } else {
-        await _pharmacyService.updateTask(
-          taskId: task.id,
-          title: draft.title,
-          details: draft.details,
-          category: draft.category,
-          priority: draft.priority,
-          quantity: draft.quantity,
-          minQuantity: draft.minQuantity,
-          unit: draft.unit,
-        );
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.tr(
-              ar: 'تعذر حفظ عنصر المخزون: $error',
-              en: 'Unable to save inventory item: $error',
-            ),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
   }
 
   Future<void> _deleteTask(PharmacyTaskModel task) async {
@@ -233,13 +180,13 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     }
   }
 
-  // حفظ بيانات الملف الشخصي الحالية بعد التعديل.
   Future<void> _saveCurrentProfile({
     required String name,
     required String username,
     String? pharmacyName,
     String? pharmacyLocation,
     String? pharmacyPhone,
+    String? photoUrl,
   }) async {
     await _authService.updateCurrentUserProfile(
       name: name,
@@ -247,10 +194,10 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       pharmacyName: pharmacyName,
       pharmacyLocation: pharmacyLocation,
       pharmacyPhone: pharmacyPhone,
+      photoUrl: photoUrl,
     );
   }
 
-  // فتح نافذة تعديل الملف الشخصي للصيدلي.
   Future<void> _openProfileEditor({
     required AppUserModel? profile,
     required String displayName,
@@ -265,10 +212,10 @@ class _PharmacistHomeState extends State<PharmacistHome> {
       accentColor: AppPalette.pharmacistPrimary,
       showPharmacyFields: true,
       onSaveProfile: _saveCurrentProfile,
+      onUploadPhoto: (bytes) => _authService.uploadProfileImage(bytes),
     );
   }
 
-  // الانتقال إلى صفحة الإعدادات من القائمة الجانبية.
   void _openSettingsFromDrawer() {
     Navigator.of(context).pop();
     Navigator.push(
@@ -277,10 +224,26 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 
-  // بناء محتوى الصفحة حسب التبويب المحدد.
+  PharmacyRatingSummary _buildRatingSummary(List<PharmacyRatingModel> ratings) {
+    if (ratings.isEmpty) {
+      return const PharmacyRatingSummary(average: 0, count: 0);
+    }
+
+    final total = ratings.fold<int>(
+      0,
+      (runningTotal, rating) => runningTotal + rating.rating,
+    );
+    return PharmacyRatingSummary(
+      average: total / ratings.length,
+      count: ratings.length,
+    );
+  }
+
   Widget _buildPage(
     List<PharmacyTaskModel> tasks,
     List<SharedMedicineModel> sharedMedicines,
+    List<PharmacyRatingModel> ratings,
+    PharmacyRatingSummary ratingSummary,
     int active,
     int urgent,
     int completed,
@@ -290,6 +253,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     final pages = [
       _PharmacistMedicineTab(
         medicines: sharedMedicines,
+        ratingSummary: ratingSummary,
         onCreateMedicine: _openMedicineEditor,
         onEditMedicine: _openMedicineEditor,
         onToggleAvailability: _toggleMedicineAvailability,
@@ -308,12 +272,15 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         urgent: urgent,
         completed: completed,
         tasks: tasks,
+        ratings: ratings,
+        ratingSummary: ratingSummary,
         onCreateTask: _openTaskEditor,
       ),
       _InsightsTab(tasks: tasks),
       _ModernPharmacistAccountTab(
         email: profile?.email ?? fallbackEmail,
         displayName: profile?.displayName ?? _fallbackPharmacistName(context),
+        ratingSummary: ratingSummary,
         onEditProfile: () => _openProfileEditor(
           profile: profile,
           displayName: profile?.displayName ?? _fallbackPharmacistName(context),
@@ -334,7 +301,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
     );
   }
 
-  // تحديد شكل وعمل الزر العائم بحسب التبويب الحالي.
   Widget? _buildFloatingActionButton() {
     if (_selectedIndex == 4) {
       return null;
@@ -342,8 +308,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
 
     final label = _selectedIndex == 0
         ? context.tr(ar: 'نشر دواء', en: 'Publish')
-        : _isSaving
-        ? context.t(AppText.saving)
         : context.tr(ar: 'عنصر مخزون', en: 'Inventory item');
 
     final icon = _selectedIndex == 0
@@ -360,8 +324,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
         elevation: 8,
         onPressed: _selectedIndex == 0
             ? _openMedicineEditor
-            : _isSaving
-            ? null
             : _openTaskEditor,
         icon: Icon(icon, size: 20),
         label: Text(
@@ -377,7 +339,6 @@ class _PharmacistHomeState extends State<PharmacistHome> {
 
   @override
   Widget build(BuildContext context) {
-    // التسلسل هنا مهم: ملف المستخدم ثم المخزون ثم الأدوية المنشورة.
     return StreamBuilder<AppUserModel?>(
       stream: _watchCurrentProfile(),
       builder: (context, profileSnapshot) {
@@ -404,162 +365,185 @@ class _PharmacistHomeState extends State<PharmacistHome> {
               builder: (context, medicineSnapshot) {
                 final sharedMedicines =
                     medicineSnapshot.data ?? const <SharedMedicineModel>[];
-                final hasDataWarning =
-                    snapshot.hasError ||
-                    medicineSnapshot.hasError ||
-                    profileSnapshot.hasError;
+                final pharmacistId = FirebaseAuth.instance.currentUser?.uid;
 
-                return Scaffold(
-                  key: _scaffoldKey,
-                  extendBody: true,
-                  drawer: ProfileSideDrawer(
-                    profile: profile,
-                    fallbackName: displayName,
-                    fallbackEmail: email,
-                    roleLabel: context.tr(ar: 'صيدلي', en: 'Pharmacist'),
-                    accentColor: AppPalette.pharmacistPrimary,
-                    onOpenSettings: _openSettingsFromDrawer,
-                    onEditProfile: () => _openProfileEditor(
-                      profile: profile,
-                      displayName: displayName,
-                      email: email,
-                    ),
-                    onSignOut: _authService.signOut,
-                  ),
-                  floatingActionButton: _buildFloatingActionButton(),
-                  bottomNavigationBar: AnimatedHomeBottomBar(
-                    selectedIndex: _selectedIndex,
-                    activeColor: AppPalette.pharmacistPrimary,
-                    horizontalInset: AppSpacing.sm,
-                    onDestinationSelected: (index) {
-                      setState(() => _selectedIndex = index);
-                    },
-                    items: [
-                      HomeBottomBarItem(
-                        icon: Icons.storefront_outlined,
-                        selectedIcon: Icons.storefront_rounded,
-                        label: context.tr(ar: 'الأدوية', en: 'Medicines'),
+                return StreamBuilder<List<PharmacyRatingModel>>(
+                  stream: pharmacistId == null
+                      ? Stream<List<PharmacyRatingModel>>.value(
+                          const <PharmacyRatingModel>[],
+                        )
+                      : _pharmacyRatingService.watchRatingsForPharmacist(
+                          pharmacistId,
+                        ),
+                  builder: (context, ratingSnapshot) {
+                    final ratings =
+                        ratingSnapshot.data ?? const <PharmacyRatingModel>[];
+                    final ratingSummary = _buildRatingSummary(ratings);
+                    final hasDataWarning =
+                        snapshot.hasError ||
+                        medicineSnapshot.hasError ||
+                        ratingSnapshot.hasError ||
+                        profileSnapshot.hasError;
+
+                    return Scaffold(
+                      key: _scaffoldKey,
+                      extendBody: true,
+                      drawer: ProfileSideDrawer(
+                        profile: profile,
+                        fallbackName: displayName,
+                        fallbackEmail: email,
+                        roleLabel: context.tr(ar: 'صيدلي', en: 'Pharmacist'),
+                        accentColor: AppPalette.pharmacistPrimary,
+                        onOpenSettings: _openSettingsFromDrawer,
+                        onEditProfile: () => _openProfileEditor(
+                          profile: profile,
+                          displayName: displayName,
+                          email: email,
+                        ),
+                        onSignOut: _authService.signOut,
                       ),
-                      HomeBottomBarItem(
-                        icon: Icons.fact_check_outlined,
-                        selectedIcon: Icons.fact_check_rounded,
-                        label: context.tr(ar: 'المخزون', en: 'Inventory'),
-                      ),
-                      HomeBottomBarItem(
-                        icon: Icons.dashboard_outlined,
-                        selectedIcon: Icons.dashboard_rounded,
-                        label: context.t(AppText.dashboard),
-                      ),
-                      HomeBottomBarItem(
-                        icon: Icons.insights_outlined,
-                        selectedIcon: Icons.insights_rounded,
-                        label: context.t(AppText.insights),
-                      ),
-                      HomeBottomBarItem(
-                        icon: Icons.person_outline_rounded,
-                        selectedIcon: Icons.person_rounded,
-                        label: context.t(AppText.account),
-                      ),
-                    ],
-                  ),
-                  body: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFFF5FBFA), Color(0xFFE3F5F1)],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                    child: SafeArea(
-                      child: Stack(
-                        children: [
-                          Column(
-                            children: [
-                              Builder(
-                                builder: (context) {
-                                  return HomeTopActionBar(
-                                    profile: profile,
-                                    fallbackName: displayName,
-                                    roleLabel: context.tr(
-                                      ar: 'لوحة تشغيل الصيدلية',
-                                      en: 'Pharmacy control room',
-                                    ),
-                                    accentColors: const [
-                                      AppPalette.pharmacistPrimary,
-                                      AppPalette.pharmacistAccent,
-                                    ],
-                                    trailingIcon: Icons.local_pharmacy_rounded,
-                                    onMenuPressed: () =>
-                                        _scaffoldKey.currentState?.openDrawer(),
-                                  );
-                                },
-                              ),
-                              if (hasDataWarning)
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    AppSpacing.lg,
-                                    AppSpacing.sm,
-                                    AppSpacing.lg,
-                                    0,
-                                  ),
-                                  child: DepthCard(
-                                    color: const Color(0xFFFFF4E5),
-                                    borderColor: const Color(0xFFFFDCA8),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.warning_amber_rounded,
-                                          color: AppPalette.amber,
-                                        ),
-                                        const SizedBox(width: AppSpacing.sm),
-                                        Expanded(
-                                          child: Text(
-                                            context.tr(
-                                              ar: 'تعذر تحميل بعض بيانات الصيدلية حالياً، لكن اللوحة ستبقى متاحة.',
-                                              en: 'Some pharmacy data could not be loaded right now, but the dashboard remains available.',
-                                            ),
-                                            style: const TextStyle(
-                                              color: AppPalette.text,
-                                              fontSize: AppFontSize.body,
-                                              fontWeight: FontWeight.w700,
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              Expanded(
-                                child: Center(
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: AppLayout.maxContentWidth,
-                                    ),
-                                    child: _buildPage(
-                                      tasks,
-                                      sharedMedicines,
-                                      active,
-                                      urgent,
-                                      completed,
-                                      profile,
-                                      email,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                      floatingActionButton: _buildFloatingActionButton(),
+                      bottomNavigationBar: AnimatedHomeBottomBar(
+                        selectedIndex: _selectedIndex,
+                        activeColor: AppPalette.pharmacistPrimary,
+                        horizontalInset: AppSpacing.sm,
+                        onDestinationSelected: (index) {
+                          setState(() => _selectedIndex = index);
+                        },
+                        items: [
+                          HomeBottomBarItem(
+                            icon: Icons.storefront_outlined,
+                            selectedIcon: Icons.storefront_rounded,
+                            label: context.tr(ar: 'الأدوية', en: 'Medicines'),
                           ),
-                          AnimatedWelcomeBanner(
-                            visible: _welcomeBannerVisible,
-                            displayName: _welcomeDisplayName,
-                            accentColor: AppPalette.pharmacistPrimary,
-                            icon: Icons.auto_awesome_rounded,
+                          HomeBottomBarItem(
+                            icon: Icons.fact_check_outlined,
+                            selectedIcon: Icons.fact_check_rounded,
+                            label: context.tr(ar: 'المخزون', en: 'Inventory'),
+                          ),
+                          HomeBottomBarItem(
+                            icon: Icons.dashboard_outlined,
+                            selectedIcon: Icons.dashboard_rounded,
+                            label: context.t(AppText.dashboard),
+                          ),
+                          HomeBottomBarItem(
+                            icon: Icons.insights_outlined,
+                            selectedIcon: Icons.insights_rounded,
+                            label: context.t(AppText.insights),
+                          ),
+                          HomeBottomBarItem(
+                            icon: Icons.person_outline_rounded,
+                            selectedIcon: Icons.person_rounded,
+                            label: context.t(AppText.account),
                           ),
                         ],
                       ),
-                    ),
-                  ),
+                      body: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xFFF5FBFA), Color(0xFFE3F5F1)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                        child: SafeArea(
+                          child: Stack(
+                            children: [
+                              Column(
+                                children: [
+                                  Builder(
+                                    builder: (context) {
+                                      return HomeTopActionBar(
+                                        profile: profile,
+                                        fallbackName: displayName,
+                                        roleLabel: context.tr(
+                                          ar: 'لوحة تشغيل الصيدلية',
+                                          en: 'Pharmacy control room',
+                                        ),
+                                        accentColors: const [
+                                          AppPalette.pharmacistPrimary,
+                                          AppPalette.pharmacistAccent,
+                                        ],
+                                        trailingIcon:
+                                            Icons.local_pharmacy_rounded,
+                                        onMenuPressed: () => _scaffoldKey
+                                            .currentState
+                                            ?.openDrawer(),
+                                      );
+                                    },
+                                  ),
+                                  if (hasDataWarning)
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        AppSpacing.lg,
+                                        AppSpacing.sm,
+                                        AppSpacing.lg,
+                                        0,
+                                      ),
+                                      child: DepthCard(
+                                        color: const Color(0xFFFFF4E5),
+                                        borderColor: const Color(0xFFFFDCA8),
+                                        child: Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.warning_amber_rounded,
+                                              color: AppPalette.amber,
+                                            ),
+                                            const SizedBox(
+                                              width: AppSpacing.sm,
+                                            ),
+                                            Expanded(
+                                              child: Text(
+                                                context.tr(
+                                                  ar: 'تعذر تحميل بعض بيانات الصيدلية حالياً، لكن اللوحة ستبقى متاحة.',
+                                                  en: 'Some pharmacy data could not be loaded right now, but the dashboard remains available.',
+                                                ),
+                                                style: const TextStyle(
+                                                  color: AppPalette.text,
+                                                  fontSize: AppFontSize.body,
+                                                  fontWeight: FontWeight.w700,
+                                                  height: 1.4,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  Expanded(
+                                    child: Center(
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: AppLayout.maxContentWidth,
+                                        ),
+                                        child: _buildPage(
+                                          tasks,
+                                          sharedMedicines,
+                                          ratings,
+                                          ratingSummary,
+                                          active,
+                                          urgent,
+                                          completed,
+                                          profile,
+                                          email,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              AnimatedWelcomeBanner(
+                                visible: _welcomeBannerVisible,
+                                displayName: _welcomeDisplayName,
+                                accentColor: AppPalette.pharmacistPrimary,
+                                icon: Icons.auto_awesome_rounded,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             );

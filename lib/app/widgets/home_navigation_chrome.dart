@@ -14,6 +14,8 @@ class HomeTopActionBar extends StatelessWidget {
     required this.onMenuPressed,
     this.onEditProfile,
     this.trailingIcon = Icons.notifications_active_rounded,
+    this.trailingBadgeCount,
+    this.onTrailingIconPressed,
   });
 
   final AppUserModel? profile;
@@ -23,6 +25,8 @@ class HomeTopActionBar extends StatelessWidget {
   final VoidCallback onMenuPressed;
   final VoidCallback? onEditProfile;
   final IconData trailingIcon;
+  final int? trailingBadgeCount;
+  final VoidCallback? onTrailingIconPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -135,14 +139,53 @@ class HomeTopActionBar extends StatelessWidget {
                 ),
               ],
               const SizedBox(width: AppSpacing.xs),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
                   borderRadius: BorderRadius.circular(AppRadius.md),
-                  color: Colors.white.withValues(alpha: 0.14),
+                  onTap: onTrailingIconPressed,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      color: Colors.white.withValues(alpha: 0.14),
+                    ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Icon(trailingIcon, color: Colors.white),
+                        if (trailingBadgeCount != null && trailingBadgeCount! > 0)
+                          Positioned(
+                            top: 2,
+                            right: 2,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: const BoxDecoration(
+                                color: Colors.redAccent,
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Text(
+                                trailingBadgeCount! > 99
+                                    ? '99+'
+                                    : '$trailingBadgeCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Icon(trailingIcon, color: Colors.white),
               ),
             ],
           ),

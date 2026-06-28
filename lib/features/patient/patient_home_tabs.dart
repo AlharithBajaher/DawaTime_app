@@ -1,10 +1,7 @@
 part of 'patient_home.dart';
 
 class _PatientTopBar extends StatelessWidget {
-  const _PatientTopBar({
-    required this.profile,
-    required this.fallbackName,
-  });
+  const _PatientTopBar({required this.profile, required this.fallbackName});
 
   final AppUserModel? profile;
   final String fallbackName;
@@ -180,9 +177,7 @@ class _ModernPatientHomeTab extends StatelessWidget {
                   ElevatedButton.icon(
                     onPressed: onAddMedication,
                     icon: const Icon(Icons.add_rounded, size: 18),
-                    label: Text(
-                      context.tr(ar: 'أضف دواء', en: 'Add medicine'),
-                    ),
+                    label: Text(context.tr(ar: 'أضف دواء', en: 'Add medicine')),
                   ),
                 ],
               ),
@@ -374,8 +369,15 @@ class _PatientUpdatesTab extends StatelessWidget {
         AppSpacing.xl,
       ),
       children: [
+        const _UpdatesHeroPanel(),
+        const SizedBox(height: AppSpacing.md),
         _UpdateCard(
-          title: context.tr(ar: 'مرحباً بك في DawaTime!', en: 'Welcome to DawaTime!'),
+          icon: Icons.auto_awesome_rounded,
+          accent: AppPalette.patientPrimary,
+          title: context.tr(
+            ar: 'مرحباً بك في DawaTime!',
+            en: 'Welcome to DawaTime!',
+          ),
           description: context.tr(
             ar: 'يساعدك التطبيق على تذكّر مواعيد أدويتك، متابعة التزامك، والوصول إلى إرشادات صحية واضحة.',
             en: 'The app helps you remember medication times, track adherence, and access clear health guidance.',
@@ -385,6 +387,8 @@ class _PatientUpdatesTab extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         _UpdateCard(
+          icon: Icons.bar_chart_rounded,
+          accent: const Color(0xFF2A8FE5),
           title: context.tr(
             ar: 'تقارير تناول الأدوية',
             en: 'Medication adherence reports',
@@ -396,19 +400,112 @@ class _PatientUpdatesTab extends StatelessWidget {
           buttonLabel: context.tr(ar: 'فتح التقارير', en: 'Open reports'),
           onPressed: onOpenReports,
         ),
+        const SizedBox(height: AppSpacing.md),
+        _UpdateCard(
+          icon: Icons.notifications_active_rounded,
+          accent: const Color(0xFF0F766E),
+          title: context.tr(
+            ar: 'إشعارات جرعات دقيقة',
+            en: 'Precise dose notifications',
+          ),
+          description: context.tr(
+            ar: 'تم ضبط تنبيهات الجرعات بقنوات مستقلة وأزرار تناول وتخطي وتأكيد محلي عند ضعف الاتصال.',
+            en: 'Dose reminders use dedicated channels with taken, skip, and local confirmation support during weak connectivity.',
+          ),
+          buttonLabel: context.tr(ar: 'جاهزة', en: 'Ready'),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _UpdateCard(
+          icon: Icons.inventory_2_rounded,
+          accent: const Color(0xFFE85D75),
+          title: context.tr(
+            ar: 'تنبيهات الكمية منفصلة',
+            en: 'Separate stock alerts',
+          ),
+          description: context.tr(
+            ar: 'تنبيهات نفاد الكمية تعمل بصوت وقناة مختلفة عن الجرعات حتى تعرف سبب التنبيه مباشرة.',
+            en: 'Low-stock alerts now use a separate sound and channel from dose reminders, making the alert purpose clear.',
+          ),
+          buttonLabel: context.tr(ar: 'مفعّلة', en: 'Enabled'),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _UpdateCard(
+          icon: Icons.cloud_sync_rounded,
+          accent: const Color(0xFF6D7DF2),
+          title: context.tr(
+            ar: 'مزامنة عند عودة الإنترنت',
+            en: 'Sync when internet returns',
+          ),
+          description: context.tr(
+            ar: 'عند الضغط على تناول أو تخطي من الإشعار يتم حفظ الإجراء محلياً ثم مزامنته تلقائياً عند توفر الاتصال.',
+            en: 'Taken and skipped actions from notifications are saved locally and sync automatically when connectivity returns.',
+          ),
+          buttonLabel: context.tr(ar: 'تعمل تلقائياً', en: 'Automatic'),
+        ),
       ],
+    );
+  }
+}
+
+class _UpdatesHeroPanel extends StatelessWidget {
+  const _UpdatesHeroPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    return DepthCard(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF153E75), Color(0xFF2A8FE5)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderColor: Colors.white.withValues(alpha: 0.18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.health_and_safety_rounded,
+            color: Colors.white,
+            size: 38,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            context.tr(ar: 'مركز تحديثات المريض', en: 'Patient update center'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: AppFontSize.pageTitle,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            context.tr(
+              ar: 'كل ما يخص الجرعات والتنبيهات والتقارير وحماية البيانات في مساحة واحدة واضحة.',
+              en: 'Dose actions, notifications, reports, and data protection are gathered in one clear workspace.',
+            ),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: AppFontSize.body,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _UpdateCard extends StatelessWidget {
   const _UpdateCard({
+    required this.icon,
+    required this.accent,
     required this.title,
     required this.description,
     required this.buttonLabel,
     this.onPressed,
   });
 
+  final IconData icon;
+  final Color accent;
   final String title;
   final String description;
   final String buttonLabel;
@@ -417,30 +514,50 @@ class _UpdateCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DepthCard(
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: AppFontSize.sectionTitle,
-              fontWeight: FontWeight.w900,
-              color: AppPalette.text,
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
+            child: Icon(icon, color: accent),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            description,
-            style: const TextStyle(
-              color: AppPalette.muted,
-              fontSize: AppFontSize.body,
-              height: 1.5,
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: AppFontSize.sectionTitle,
+                    fontWeight: FontWeight.w900,
+                    color: AppPalette.text,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: AppPalette.muted,
+                    fontSize: AppFontSize.body,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FilledButton.tonal(
+                    onPressed: onPressed,
+                    child: Text(buttonLabel),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          ElevatedButton(
-            onPressed: onPressed,
-            child: Text(buttonLabel),
           ),
         ],
       ),
@@ -451,12 +568,12 @@ class _UpdateCard extends StatelessWidget {
 class _PatientMoreTab extends StatelessWidget {
   const _PatientMoreTab({
     required this.onOpenPage,
-    required this.medications,
+    required this.medicationHistory,
     required this.onEditProfile,
   });
 
   final Future<void> Function(Widget page) onOpenPage;
-  final List<MedicationModel> medications;
+  final List<MedicationModel> medicationHistory;
   final VoidCallback onEditProfile;
 
   @override
@@ -478,39 +595,45 @@ class _PatientMoreTab extends StatelessWidget {
           en: 'Precise adherence insights for taken, skipped, and missed doses.',
         ),
         icon: Icons.bar_chart_rounded,
-        page: _MedicationReportsPage(medications: medications),
+        page: _MedicationReportsLivePage(
+          fallbackMedications: medicationHistory,
+        ),
+      ),
+      _MoreDestination(
+        title: context.tr(ar: 'النسخ الاحتياطي', en: 'Backup & restore'),
+        description: context.tr(
+          ar: 'احفظ بياناتك في السحابة أو على جهازك واستعدها عند الحاجة.',
+          en: 'Backup your data to the cloud or locally and restore anytime.',
+        ),
+        icon: Icons.backup_rounded,
+        page: const BackupScreen(),
       ),
       _MoreDestination(
         title: context.tr(ar: 'دليل التطبيق', en: 'App guide'),
         description: context.tr(
-          ar: 'شرح سريع لكيفية استخدام المنصة والتنقل بين أقسامها.',
-          en: 'A quick guide to using the platform and navigating its sections.',
+          ar: 'خطوات واضحة لإدارة الأدوية، قراءة التقارير، والاستفادة من السوق الدوائي.',
+          en: 'Clear steps for managing medicines, reading reports, and using the medicine marketplace.',
         ),
         icon: Icons.menu_book_rounded,
-        page: _SimplePage(
-          title: context.tr(ar: 'دليل التطبيق', en: 'App guide'),
-          description: context.tr(
-            ar: 'يمكنك من هنا متابعة الأدوية، قراءة التقارير، وتصفح الأدوية المنشورة من الصيدليات بسهولة.',
-            en: 'From here you can follow medicines, open reports, and browse medicines published by pharmacies with ease.',
-          ),
-          icon: Icons.menu_book_rounded,
-        ),
+        page: _PatientKnowledgePage.appGuide(context),
       ),
       _MoreDestination(
-        title: context.tr(ar: 'أجهزة تتبع الصحة', en: 'Health trackers'),
+        title: context.tr(ar: 'مركز الإشعارات', en: 'Notification center'),
         description: context.tr(
-          ar: 'مساحة جاهزة لاحقاً لربط الضغط والسكر والنبض.',
-          en: 'Prepared for future blood pressure, glucose, and pulse tracking.',
+          ar: 'شرح عملي لطريقة عمل إشعارات الجرعات والكمية والمزامنة عند عودة الاتصال.',
+          en: 'A practical guide to dose alerts, stock alerts, and sync after reconnecting.',
+        ),
+        icon: Icons.notifications_active_rounded,
+        page: _PatientKnowledgePage.notifications(context),
+      ),
+      _MoreDestination(
+        title: context.tr(ar: 'المؤشرات الصحية', en: 'Health insights'),
+        description: context.tr(
+          ar: 'لوحة إرشادية خفيفة تربط الالتزام بالجرعات مع عادات يومية مفيدة.',
+          en: 'A lightweight guidance board connecting dose adherence with helpful daily habits.',
         ),
         icon: Icons.monitor_heart_outlined,
-        page: _SimplePage(
-          title: context.tr(ar: 'أجهزة تتبع الصحة', en: 'Health trackers'),
-          description: context.tr(
-            ar: 'صفحة مخصصة لاحقاً لربط قياساتك الصحية بشكل أسهل.',
-            en: 'A future page dedicated to linking health measurements more easily.',
-          ),
-          icon: Icons.monitor_heart_outlined,
-        ),
+        page: _PatientKnowledgePage.healthInsights(context),
       ),
     ];
 
@@ -544,10 +667,15 @@ class _PatientMoreTab extends StatelessWidget {
                         width: 54,
                         height: 54,
                         decoration: BoxDecoration(
-                          color: AppPalette.patientPrimary.withValues(alpha: 0.10),
+                          color: AppPalette.patientPrimary.withValues(
+                            alpha: 0.10,
+                          ),
                           borderRadius: BorderRadius.circular(AppRadius.lg),
                         ),
-                        child: Icon(item.icon, color: AppPalette.patientPrimary),
+                        child: Icon(
+                          item.icon,
+                          color: AppPalette.patientPrimary,
+                        ),
                       ),
                       const SizedBox(width: AppSpacing.sm),
                       Expanded(
@@ -605,56 +733,259 @@ class _MoreDestination {
   final VoidCallback? onTap;
 }
 
-class _SimplePage extends StatelessWidget {
-  const _SimplePage({
+class _PatientKnowledgePage extends StatelessWidget {
+  const _PatientKnowledgePage({
     required this.title,
     required this.description,
     required this.icon,
+    required this.accent,
+    required this.sections,
   });
 
   final String title;
   final String description;
   final IconData icon;
+  final Color accent;
+  final List<_KnowledgeSection> sections;
+
+  static _PatientKnowledgePage appGuide(BuildContext context) {
+    return _PatientKnowledgePage(
+      title: context.tr(ar: 'دليل التطبيق', en: 'App guide'),
+      description: context.tr(
+        ar: 'مسار سريع يوضح كيف تستخدم DawaTime بثقة من إضافة الدواء حتى قراءة التقرير.',
+        en: 'A quick path for using DawaTime confidently from adding medicine to reading reports.',
+      ),
+      icon: Icons.menu_book_rounded,
+      accent: AppPalette.patientPrimary,
+      sections: [
+        _KnowledgeSection(
+          icon: Icons.add_circle_outline_rounded,
+          title: context.tr(ar: 'إضافة الدواء', en: 'Add medicine'),
+          body: context.tr(
+            ar: 'أدخل اسم الدواء، شكله، الكمية، وعدد الجرعات. بعد الحفظ يتم تجهيز جدول الجرعات تلقائياً.',
+            en: 'Enter medicine name, form, quantity, and dose count. After saving, the dose schedule is prepared automatically.',
+          ),
+        ),
+        _KnowledgeSection(
+          icon: Icons.touch_app_rounded,
+          title: context.tr(ar: 'تنفيذ الجرعة', en: 'Handle a dose'),
+          body: context.tr(
+            ar: 'من بطاقة الجرعة يمكنك تسجيل التناول أو التخطي أو التأجيل، وتنعكس النتيجة مباشرة في التقارير.',
+            en: 'From the dose card, mark taken, skipped, or snoozed, and the result appears directly in reports.',
+          ),
+        ),
+        _KnowledgeSection(
+          icon: Icons.storefront_rounded,
+          title: context.tr(ar: 'السوق الدوائي', en: 'Medicine marketplace'),
+          body: context.tr(
+            ar: 'تصفح أدوية الصيدليات، راجع السعر والتوفر والتقييمات، ثم قيّم الصيدلية بعد تجربتك.',
+            en: 'Browse pharmacy medicines, review price, availability, and ratings, then rate the pharmacy after your experience.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  static _PatientKnowledgePage notifications(BuildContext context) {
+    return _PatientKnowledgePage(
+      title: context.tr(ar: 'مركز الإشعارات', en: 'Notification center'),
+      description: context.tr(
+        ar: 'تفاصيل واضحة لما يحدث خلف تنبيهات الجرعات وتنبيهات الكمية.',
+        en: 'A clear explanation of what happens behind dose and stock alerts.',
+      ),
+      icon: Icons.notifications_active_rounded,
+      accent: const Color(0xFF0F766E),
+      sections: [
+        _KnowledgeSection(
+          icon: Icons.alarm_rounded,
+          title: context.tr(ar: 'إشعار الجرعة', en: 'Dose reminder'),
+          body: context.tr(
+            ar: 'يظهر في وقت الجرعة مع أزرار تناول وتخطي وتأجيل، ويستخدم قناة مخصصة للجرعات فقط.',
+            en: 'Appears at dose time with taken, skip, and snooze actions, using a dose-only channel.',
+          ),
+        ),
+        _KnowledgeSection(
+          icon: Icons.inventory_2_rounded,
+          title: context.tr(ar: 'إشعار الكمية', en: 'Stock alert'),
+          body: context.tr(
+            ar: 'يتم حسابه من الكمية المتبقية وجدول الجرعات، ويظهر قبل النفاد بقناة وصوت منفصلين.',
+            en: 'Calculated from remaining stock and schedule, appearing before depletion through a separate channel and sound.',
+          ),
+        ),
+        _KnowledgeSection(
+          icon: Icons.cloud_done_rounded,
+          title: context.tr(ar: 'المزامنة', en: 'Sync'),
+          body: context.tr(
+            ar: 'إذا ضعف الاتصال، يتم حفظ إجراء الجرعة محلياً ثم مزامنته تلقائياً عند عودة الإنترنت.',
+            en: 'If connectivity is weak, dose actions are saved locally and synced automatically when internet returns.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  static _PatientKnowledgePage healthInsights(BuildContext context) {
+    return _PatientKnowledgePage(
+      title: context.tr(ar: 'المؤشرات الصحية', en: 'Health insights'),
+      description: context.tr(
+        ar: 'إرشادات يومية مختصرة تساعدك على ربط الالتزام بالجرعات بروتين صحي أسهل.',
+        en: 'Short daily guidance that connects dose adherence with a healthier routine.',
+      ),
+      icon: Icons.monitor_heart_outlined,
+      accent: const Color(0xFFE85D75),
+      sections: [
+        _KnowledgeSection(
+          icon: Icons.water_drop_outlined,
+          title: context.tr(ar: 'الترطيب', en: 'Hydration'),
+          body: context.tr(
+            ar: 'اجعل شرب الماء عادة ملازمة لبعض الجرعات عندما يسمح الطبيب بذلك.',
+            en: 'Pair water intake with some doses when your clinician says it is appropriate.',
+          ),
+        ),
+        _KnowledgeSection(
+          icon: Icons.restaurant_menu_rounded,
+          title: context.tr(ar: 'الغذاء والدواء', en: 'Food and medicine'),
+          body: context.tr(
+            ar: 'استخدم ملاحظات الجرعة لتتذكر إن كان الدواء يؤخذ قبل الطعام أو بعده.',
+            en: 'Use dose notes to remember whether medicine should be taken before or after meals.',
+          ),
+        ),
+        _KnowledgeSection(
+          icon: Icons.bedtime_rounded,
+          title: context.tr(ar: 'روتين ثابت', en: 'Stable routine'),
+          body: context.tr(
+            ar: 'ثبات وقت النوم والاستيقاظ يجعل تنبيهات الجرعات أكثر قابلية للالتزام.',
+            en: 'Stable sleep and wake times make dose reminders easier to follow.',
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: AppLayout.maxSheetWidth),
-          child: Padding(
-            padding: AppSpacing.pagePadding,
-            child: DepthCard(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 72, color: AppPalette.patientPrimary),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: AppFontSize.pageTitle,
-                      fontWeight: FontWeight.w900,
-                      color: AppPalette.text,
+      body: Container(
+        color: const Color(0xFFF3F6FB),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: AppLayout.maxContentWidth,
+            ),
+            child: ListView(
+              padding: AppSpacing.pagePadding,
+              children: [
+                DepthCard(
+                  gradient: LinearGradient(
+                    colors: [accent, accent.withValues(alpha: 0.68)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderColor: Colors.white.withValues(alpha: 0.18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(icon, size: 46, color: Colors.white),
+                      const SizedBox(height: AppSpacing.md),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: AppFontSize.pageTitle,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        description,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: AppFontSize.body,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ...sections.map(
+                  (section) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: _KnowledgeSectionTile(
+                      section: section,
+                      accent: accent,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    description,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppPalette.muted,
-                      fontSize: AppFontSize.body,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _KnowledgeSection {
+  const _KnowledgeSection({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+}
+
+class _KnowledgeSectionTile extends StatelessWidget {
+  const _KnowledgeSectionTile({required this.section, required this.accent});
+
+  final _KnowledgeSection section;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return DepthCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: Icon(section.icon, color: accent),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  section.title,
+                  style: const TextStyle(
+                    color: AppPalette.text,
+                    fontSize: AppFontSize.bodyLarge,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  section.body,
+                  style: const TextStyle(
+                    color: AppPalette.muted,
+                    fontSize: AppFontSize.body,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -712,9 +1043,17 @@ class _MedicationReportsPage extends StatelessWidget {
         continue;
       }
 
+      final medEndDate = _effectiveMedicationEnd(medication);
+      final lastDate = medEndDate != null && medEndDate.isBefore(today)
+          ? medEndDate
+          : today;
+      if (medicationStartDate.isAfter(lastDate)) {
+        continue;
+      }
+
       for (
         var day = medicationStartDate;
-        !day.isAfter(today);
+        !day.isAfter(lastDate);
         day = day.add(const Duration(days: 1))
       ) {
         if (!medication.isScheduledOnDate(day)) {
@@ -769,6 +1108,8 @@ class _MedicationReportsPage extends StatelessWidget {
     for (final medication in medications) {
       var scheduled = 0;
       var taken = 0;
+      var skipped = 0;
+      var missed = 0;
 
       final medicationStartDate = _effectiveMedicationStart(
         windowStartDate,
@@ -778,9 +1119,17 @@ class _MedicationReportsPage extends StatelessWidget {
         continue;
       }
 
+      final medEndDate = _effectiveMedicationEnd(medication);
+      final lastDate = medEndDate != null && medEndDate.isBefore(today)
+          ? medEndDate
+          : today;
+      if (medicationStartDate.isAfter(lastDate)) {
+        continue;
+      }
+
       for (
         var day = medicationStartDate;
-        !day.isAfter(today);
+        !day.isAfter(lastDate);
         day = day.add(const Duration(days: 1))
       ) {
         if (!medication.isScheduledOnDate(day)) {
@@ -802,6 +1151,10 @@ class _MedicationReportsPage extends StatelessWidget {
           scheduled += 1;
           if (medication.isDoseTaken(scheduledAt)) {
             taken += 1;
+          } else if (medication.isDoseSkipped(scheduledAt)) {
+            skipped += 1;
+          } else if (medication.isDoseMissed(scheduledAt, now: now)) {
+            missed += 1;
           }
         }
       }
@@ -815,6 +1168,8 @@ class _MedicationReportsPage extends StatelessWidget {
           medication: medication,
           name: medication.name,
           taken: taken,
+          skipped: skipped,
+          missed: missed,
           scheduled: scheduled,
         ),
       );
@@ -845,9 +1200,18 @@ class _MedicationReportsPage extends StatelessWidget {
       createdAt.month,
       createdAt.day,
     );
-    return createdDate.isAfter(windowStartDate)
-        ? createdDate
-        : windowStartDate;
+    return createdDate.isAfter(windowStartDate) ? createdDate : windowStartDate;
+  }
+
+  DateTime? _effectiveMedicationEnd(MedicationModel medication) {
+    if (!medication.isArchived) {
+      return null;
+    }
+    final archived = medication.archivedAt?.toDate();
+    if (archived == null) {
+      return null;
+    }
+    return DateTime(archived.year, archived.month, archived.day);
   }
 
   Future<void> _openMonthCalendar(
@@ -871,7 +1235,9 @@ class _MedicationReportsPage extends StatelessWidget {
     final medicineRows = _buildMedicineRows(days: 30);
 
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr(ar: 'التقارير', en: 'Reports'))),
+      appBar: AppBar(
+        title: Text(context.tr(ar: 'التقارير', en: 'Reports')),
+      ),
       body: Container(
         color: const Color(0xFFF3F6FB),
         child: ListView(
@@ -920,11 +1286,17 @@ class _MedicationReportsPage extends StatelessWidget {
                         value: '${(weekly.adherenceRate * 100).round()}%',
                       ),
                       _ReportMetric(
-                        label: context.tr(ar: 'آخر 30 يوماً', en: 'Last 30 days'),
+                        label: context.tr(
+                          ar: 'آخر 30 يوماً',
+                          en: 'Last 30 days',
+                        ),
                         value: '${(monthly.adherenceRate * 100).round()}%',
                       ),
                       _ReportMetric(
-                        label: context.tr(ar: 'آخر 90 يوماً', en: 'Last 90 days'),
+                        label: context.tr(
+                          ar: 'آخر 90 يوماً',
+                          en: 'Last 90 days',
+                        ),
                         value: '${(quarterly.adherenceRate * 100).round()}%',
                       ),
                     ],
@@ -976,67 +1348,75 @@ class _MedicationReportsPage extends StatelessWidget {
                       ),
                     )
                   else
-                    ...medicineRows.take(6).map(
-                      (row) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: Container(
-                          padding: const EdgeInsets.all(AppSpacing.sm),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF6FAFF),
-                            borderRadius: BorderRadius.circular(AppRadius.lg),
-                            border: Border.all(color: const Color(0xFFDCE7F8)),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
+                    ...medicineRows
+                        .take(6)
+                        .map(
+                          (row) => Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(AppSpacing.sm),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF6FAFF),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
+                                border: Border.all(
+                                  color: const Color(0xFFDCE7F8),
+                                ),
+                              ),
+                              child: Column(
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      row.name,
-                                      style: const TextStyle(
-                                        color: AppPalette.text,
-                                        fontSize: AppFontSize.bodyLarge,
-                                        fontWeight: FontWeight.w800,
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          row.name,
+                                          style: const TextStyle(
+                                            color: AppPalette.text,
+                                            fontSize: AppFontSize.bodyLarge,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      Text(
+                                        '${(row.adherenceRate * 100).round()}%',
+                                        style: const TextStyle(
+                                          color: AppPalette.patientPrimary,
+                                          fontSize: AppFontSize.body,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    '${(row.adherenceRate * 100).round()}%',
-                                    style: const TextStyle(
-                                      color: AppPalette.patientPrimary,
-                                      fontSize: AppFontSize.body,
-                                      fontWeight: FontWeight.w900,
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Align(
+                                    alignment: context.isArabic
+                                        ? Alignment.centerLeft
+                                        : Alignment.centerRight,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => _openMonthCalendar(
+                                        context,
+                                        row.medication,
+                                      ),
+                                      icon: const Icon(
+                                        Icons.calendar_month_rounded,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        context.tr(
+                                          ar: 'تقويم الشهر',
+                                          en: 'Month calendar',
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: AppSpacing.xs),
-                              Align(
-                                alignment: context.isArabic
-                                    ? Alignment.centerLeft
-                                    : Alignment.centerRight,
-                                child: OutlinedButton.icon(
-                                  onPressed: () => _openMonthCalendar(
-                                    context,
-                                    row.medication,
-                                  ),
-                                  icon: const Icon(
-                                    Icons.calendar_month_rounded,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    context.tr(
-                                      ar: 'تقويم الشهر',
-                                      en: 'Month calendar',
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
                 ],
               ),
             ),
@@ -1099,6 +1479,14 @@ class _AdherenceReportCard extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          _AdherenceBar(
+            taken: report.taken,
+            skipped: report.skipped,
+            missed: report.missed,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _AdherenceLegend(),
           const SizedBox(height: AppSpacing.md),
           Wrap(
             spacing: AppSpacing.sm,
@@ -1126,6 +1514,12 @@ class _AdherenceReportCard extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.md),
+          _AdherenceInterpretation(
+            rate: report.adherenceRate,
+            missed: report.missed,
+            totalScheduled: report.scheduled,
+          ),
         ],
       ),
     );
@@ -1138,14 +1532,236 @@ class _MedicineReportRowData {
     required this.name,
     required this.taken,
     required this.scheduled,
+    this.skipped = 0,
+    this.missed = 0,
   });
 
   final MedicationModel medication;
   final String name;
   final int taken;
   final int scheduled;
+  final int skipped;
+  final int missed;
 
   double get adherenceRate => scheduled == 0 ? 0 : taken / scheduled;
+}
+
+class _AdherenceBar extends StatelessWidget {
+  const _AdherenceBar({required this.taken, required this.skipped, required this.missed});
+
+  final int taken;
+  final int skipped;
+  final int missed;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = taken + skipped + missed;
+    if (total == 0) {
+      return Container(
+        height: 24,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8ECF2),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          context.tr(ar: 'لا توجد بيانات', en: 'No data'),
+          style: const TextStyle(
+            color: Color(0xFF9AA6B8),
+            fontSize: AppFontSize.caption,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    final takenFraction = taken / total;
+    final skippedFraction = skipped / total;
+    final missedFraction = missed / total;
+
+    return Container(
+      height: 24,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8ECF2),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        children: [
+          if (taken > 0)
+            Expanded(
+              flex: (takenFraction * 100).round().clamp(1, 100),
+              child: Container(
+                color: const Color(0xFF2E9B6B),
+                alignment: Alignment.center,
+                child: takenFraction > 0.12
+                    ? Text(
+                        '${(takenFraction * 100).round()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          if (skipped > 0)
+            Expanded(
+              flex: (skippedFraction * 100).round().clamp(1, 100),
+              child: Container(
+                color: const Color(0xFFE8A838),
+                alignment: Alignment.center,
+                child: skippedFraction > 0.12
+                    ? Text(
+                        '${(skippedFraction * 100).round()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+          if (missed > 0)
+            Expanded(
+              flex: (missedFraction * 100).round().clamp(1, 100),
+              child: Container(
+                color: const Color(0xFFD95555),
+                alignment: Alignment.center,
+                child: missedFraction > 0.12
+                    ? Text(
+                        '${(missedFraction * 100).round()}%',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdherenceLegend extends StatelessWidget {
+  const _AdherenceLegend();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _legendDot(const Color(0xFF2E9B6B), context.tr(ar: 'مأخوذة', en: 'Taken')),
+        const SizedBox(width: AppSpacing.sm),
+        _legendDot(const Color(0xFFE8A838), context.tr(ar: 'متخطاة', en: 'Skipped')),
+        const SizedBox(width: AppSpacing.sm),
+        _legendDot(const Color(0xFFD95555), context.tr(ar: 'فائتة', en: 'Missed')),
+      ],
+    );
+  }
+
+  Widget _legendDot(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppPalette.muted,
+            fontSize: AppFontSize.caption,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdherenceInterpretation extends StatelessWidget {
+  const _AdherenceInterpretation({required this.rate, required this.missed, required this.totalScheduled});
+
+  final double rate;
+  final int missed;
+  final int totalScheduled;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (rate * 100).round();
+    String message;
+    IconData icon;
+
+    if (totalScheduled == 0) {
+      message = context.tr(
+        ar: 'لم تبدأ بعد في تناول الجرعات المقررة. ابدأ بمتابعة جدول أدويتك.',
+        en: 'You have not started taking any scheduled doses yet. Start tracking your medication schedule.',
+      );
+      icon = Icons.info_outline_rounded;
+    } else if (percent >= 90) {
+      message = context.tr(
+        ar: 'التزام ممتاز! حافظ على هذا المستوى للحصول على أفضل نتائج علاجية.',
+        en: 'Excellent adherence! Keep up this level for the best treatment outcomes.',
+      );
+      icon = Icons.emoji_events_rounded;
+    } else if (percent >= 75) {
+      message = context.tr(
+        ar: 'التزام جيد. حاول تحسين الالتزام بتناول الجرعات في مواعيدها.',
+        en: 'Good adherence. Try to improve by taking doses on time.',
+      );
+      icon = Icons.thumb_up_rounded;
+    } else if (percent >= 50) {
+      message = context.tr(
+        ar: 'التزام متوسط. فاتتك $missed جرعة. حاول ضبط منبهات الأدوية.',
+        en: 'Moderate adherence. You missed $missed doses. Try setting medication alarms.',
+      );
+      icon = Icons.trending_up_rounded;
+    } else {
+      message = context.tr(
+        ar: 'التزام منخفض. فاتتك $missed جرعة. استشر طبيبك لضبط الجدول العلاجي.',
+        en: 'Low adherence. You missed $missed doses. Consult your doctor to adjust the treatment plan.',
+      );
+      icon = Icons.warning_amber_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: percent >= 75
+            ? const Color(0xFFE8F8F0)
+            : percent >= 50
+                ? const Color(0xFFFFF7E8)
+                : const Color(0xFFFFF0F0),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: AppPalette.text),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: AppPalette.text,
+                fontSize: AppFontSize.caption,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 enum _MedicationDayState { none, upcoming, taken, notTaken }
@@ -1369,7 +1985,11 @@ class _MedicationMonthCalendarSheetState
                       return const SizedBox.shrink();
                     }
                     final dayNumber = index - leadingBlanks + 1;
-                    final dayDate = DateTime(month.year, month.month, dayNumber);
+                    final dayDate = DateTime(
+                      month.year,
+                      month.month,
+                      dayNumber,
+                    );
                     final state = _dayState(dayDate);
                     final statusIcon = _statusIconForState(state);
                     final bgColor = _backgroundForState(state);
@@ -1878,7 +2498,15 @@ class _DayTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final weekday = context.isArabic
-        ? const ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
+        ? const [
+            'الأحد',
+            'الاثنين',
+            'الثلاثاء',
+            'الأربعاء',
+            'الخميس',
+            'الجمعة',
+            'السبت',
+          ]
         : const ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
     return InkWell(
@@ -1951,19 +2579,13 @@ class _QuickActionMenu extends StatelessWidget {
                   children: [
                     _QuickActionButton(
                       icon: Icons.medication_rounded,
-                      label: context.tr(
-                        ar: 'إضافة دواء',
-                        en: 'Add medicine',
-                      ),
+                      label: context.tr(ar: 'إضافة دواء', en: 'Add medicine'),
                       onTap: onAddMedication,
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     _QuickActionButton(
                       icon: Icons.schedule_rounded,
-                      label: context.tr(
-                        ar: 'إضافة جرعة',
-                        en: 'Add dose',
-                      ),
+                      label: context.tr(ar: 'إضافة جرعة', en: 'Add dose'),
                       onTap: onAddDose,
                     ),
                     const SizedBox(height: AppSpacing.xs),

@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -61,12 +62,28 @@ class AuthService {
     return getUserProfile(uid);
   }
 
+  Future<String> uploadProfileImage(Uint8List imageBytes) async {
+    final user = currentUser;
+    if (user == null) {
+      throw StateError('No authenticated user found for photo upload.');
+    }
+
+    final safeName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final storagePath = 'users/${user.uid}/$safeName';
+    final ref = FirebaseStorage.instance.ref(storagePath);
+
+    await ref.putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'));
+    final downloadUrl = await ref.getDownloadURL();
+    return downloadUrl;
+  }
+
   Future<void> updateCurrentUserProfile({
     required String name,
     required String username,
     String? pharmacyName,
     String? pharmacyLocation,
     String? pharmacyPhone,
+    String? photoUrl,
   }) async {
     final user = currentUser;
     if (user == null) {
@@ -106,10 +123,11 @@ class AuthService {
     final trimmedPharmacyLocation = pharmacyLocation?.trim() ?? '';
     final trimmedPharmacyPhone = pharmacyPhone?.trim() ?? '';
 
+    final resolvedPhotoUrl = photoUrl ?? user.photoURL;
     final updateData = <String, dynamic>{
       'name': name.trim(),
       'username': normalizedUsername,
-      'photoUrl': user.photoURL,
+      if (resolvedPhotoUrl != null) 'photoUrl': resolvedPhotoUrl,
     };
     if (isPharmacist) {
       updateData['pharmacyName'] = trimmedPharmacyName;

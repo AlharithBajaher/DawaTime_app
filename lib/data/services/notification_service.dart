@@ -852,23 +852,17 @@ class NotificationService {
     required bool queued,
   }) async {
     await _ensureBasicPermission();
-    final name   = payload.medicationName.isEmpty ? 'Medication' : payload.medicationName;
     final nameAr = payload.medicationName.isEmpty ? 'الدواء' : payload.medicationName;
-    final String bodyEn;
     final String bodyAr;
     if (queued) {
-      bodyEn = '$name was ${markAsTaken ? "taken" : "skipped"} locally and will sync when online.';
       bodyAr = 'تم تسجيل ${markAsTaken ? "تناول" : "تخطي"} $nameAr محلياً، وسيُزامن عند الاتصال.';
     } else {
-      bodyEn = '$name marked as ${markAsTaken ? "taken ✅" : "skipped ⏭️"}.';
       bodyAr = 'تم تسجيل $nameAr كـ${markAsTaken ? "مأخوذ ✅" : "متخطى ⏭️"}.';
     }
     final id = 1800000000 +
         ('${payload.medicationId}_${payload.scheduledAtIso}_$markAsTaken'
             .hashCode.abs() % 100000000);
     await _plugin.show(id, 'DawaTime', bodyAr, _syncDetails);
-    // ignore: unused_local_variable
-    final _ = bodyEn; // stored in payload for future multilingual use
   }
 
   // =========================================================================
@@ -985,7 +979,9 @@ class NotificationService {
         await a.requestExactAlarmsPermission();
       }
     } catch (_) {}
-    try { await a.requestFullScreenIntentPermission(); } catch (_) {}
+    try {
+      await a.requestFullScreenIntentPermission();
+    } catch (_) {}
   }
 
   static Future<void> _ensureBasicPermission() async {
@@ -1258,3 +1254,5 @@ class _DosePayload {
     } catch (_) { return null; }
   }
 }
+
+// =========================================================================

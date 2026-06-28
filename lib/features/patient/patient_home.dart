@@ -20,6 +20,7 @@ import '../../data/services/medication_service.dart';
 import '../../data/services/notification_service.dart';
 import '../../data/services/pharmacy_rating_service.dart';
 import '../../data/services/shared_medicine_service.dart';
+import '../settings/backup_screen.dart';
 import '../settings/settings_page.dart';
 import 'medication_editor_page.dart';
 
@@ -230,7 +231,6 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
 
     _isReminderSyncRunning = true;
     _lastReminderSyncSignature = signature;
-    final reminderTitle = context.t(AppText.appName);
     final isArabic = context.isArabic;
     var hasAnyFailure = false;
 
@@ -240,41 +240,30 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
           final notificationIds = await _ensureNotificationIdsForMedication(
             medication,
           );
-          final reminderBody = isArabic
-              ? 'حان وقت تناول ${medication.name}'
-              : 'It is time to take ${medication.name}';
 
           if (notificationIds.isNotEmpty) {
             await NotificationService.scheduleMedicationReminders(
               ids: notificationIds,
-              title: reminderTitle,
-              body: reminderBody,
               doseTimes: medication.sortedDoseTimes,
               intervalDays: medication.intervalDays,
               anchorDate: medication.createdAt?.toDate() ?? DateTime.now(),
               medicationId: medication.id,
               medicationName: medication.name,
               medicationDose: medication.dose,
+              isArabic: isArabic,
             );
           }
 
-          final lowStockId =
-              NotificationService.lowStockNotificationIdForMedication(
-                medication.id,
-              );
-          await NotificationService.cancelNotification(lowStockId);
-          final lowStockReminderAt = _estimateLowStockReminderDate(medication);
-          if (lowStockReminderAt != null) {
-            final lowStockBody = isArabic
-                ? 'كمية ${medication.name} على وشك النفاد. يرجى إعادة التعبئة.'
-                : '${medication.name} is running low. Please refill soon.';
-            await NotificationService.scheduleLowStockReminder(
-              id: lowStockId,
-              title: reminderTitle,
-              body: lowStockBody,
-              reminderAt: lowStockReminderAt,
-            );
-          }
+          // Stock reminders – use new unified API
+          await NotificationService.syncMedicationStockReminders(
+            medicationId: medication.id,
+            medicationName: medication.name,
+            totalQuantity: medication.quantity,
+            remainingQuantity: medication.remainingQuantity,
+            dosesPerDay: medication.sortedDoseTimes.length.clamp(1, 24),
+            intervalDays: medication.intervalDays,
+            isArabic: isArabic,
+          );
         } catch (_) {
           hasAnyFailure = true;
         }
@@ -362,61 +351,6 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
     });
   }
 
-  DateTime? _estimateLowStockReminderDate(MedicationModel medication) {
-    final sortedDoseTimes = medication.sortedDoseTimes;
-    if (sortedDoseTimes.isEmpty || medication.remainingQuantity <= 0) {
-      return null;
-    }
-
-    final now = DateTime.now().toLocal();
-    final today = DateTime(now.year, now.month, now.day);
-    var dosesLeft = medication.remainingQuantity;
-    DateTime? depletionAt;
-
-    for (var dayOffset = 0; dayOffset <= 1100 && dosesLeft > 0; dayOffset++) {
-      final day = today.add(Duration(days: dayOffset));
-      if (!medication.isScheduledOnDate(day)) {
-        continue;
-      }
-
-      for (final doseTime in sortedDoseTimes) {
-        final scheduledAt = DateTime(
-          day.year,
-          day.month,
-          day.day,
-          doseTime.hour,
-          doseTime.minute,
-        );
-        if (scheduledAt.isBefore(now)) {
-          continue;
-        }
-
-        dosesLeft -= 1;
-        if (dosesLeft <= 0) {
-          depletionAt = scheduledAt;
-          break;
-        }
-      }
-    }
-
-    if (depletionAt == null) {
-      final dosesPerCycle = sortedDoseTimes.length;
-      final estimatedDaysLeft =
-          ((medication.remainingQuantity / dosesPerCycle).ceil() *
-                  medication.intervalDays)
-              .clamp(1, 3650)
-              .toInt();
-      depletionAt = now.add(Duration(days: estimatedDaysLeft));
-    }
-
-    final reminderAt = depletionAt.subtract(const Duration(days: 2));
-    if (!reminderAt.isAfter(now)) {
-      final tomorrow = now.add(const Duration(days: 1));
-      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
-    }
-    return reminderAt;
-  }
-
   Future<void> _openPlaceholderPage(Widget page) async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
@@ -501,13 +435,10 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
       draft: draft,
       existing: existing,
     );
+    // Capture context-dependent values before any async gap
+    final isArabic = context.isArabic;
 
     try {
-      final reminderTitle = context.t(AppText.appName);
-      final reminderBody = context.tr(
-        ar: 'حان وقت تناول ${draft.name}',
-        en: 'It is time to take ${draft.name}',
-      );
       final firstDose = draft.doseTimes.first;
       final label = _formatTime(
         TimeOfDay(hour: firstDose.hour, minute: firstDose.minute),
@@ -556,14 +487,13 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
       try {
         await NotificationService.scheduleMedicationReminders(
           ids: notificationIds,
-          title: reminderTitle,
-          body: reminderBody,
           doseTimes: draft.doseTimes,
           intervalDays: draft.intervalDays,
           anchorDate: scheduleAnchor,
           medicationId: savedMedicationId,
           medicationName: draft.name,
           medicationDose: draft.dose,
+          isArabic: isArabic,
         );
 
         if (existing != null &&
@@ -573,13 +503,16 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
             existing.notificationIds,
           );
         }
-        if (existing != null) {
-          await NotificationService.cancelNotification(
-            NotificationService.lowStockNotificationIdForMedication(
-              existing.id,
-            ),
-          );
-        }
+        // Reschedule stock reminders for new/updated medication
+        await NotificationService.syncMedicationStockReminders(
+          medicationId: savedMedicationId,
+          medicationName: draft.name,
+          totalQuantity: draft.quantity,
+          remainingQuantity: draft.quantity,
+          dosesPerDay: draft.doseTimes.length.clamp(1, 24),
+          intervalDays: draft.intervalDays,
+          isArabic: isArabic,
+        );
       } catch (_) {
         // Keep the saved medication and allow automatic resync on next frame/resume.
         _lastReminderSyncSignature = '';
@@ -713,6 +646,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
     }
 
     setState(() => _doseActionInProgress = true);
+    final isArabic = context.isArabic;
     try {
       final takenAt = DateTime.now().toLocal();
       final result = await _medicationService.markDoseAsTaken(
@@ -739,6 +673,19 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
+
+      // Re-evaluate stock reminders after each dose taken
+      if (!result.archivedMedication && mounted) {
+        await NotificationService.syncMedicationStockReminders(
+          medicationId: dose.medication.id,
+          medicationName: dose.medication.name,
+          totalQuantity: dose.medication.quantity,
+          remainingQuantity: result.remainingQuantity,
+          dosesPerDay: dose.medication.sortedDoseTimes.length.clamp(1, 24),
+          intervalDays: dose.medication.intervalDays,
+          isArabic: isArabic,
+        );
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -815,6 +762,15 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
         en: 'Operation blocked by current Firestore rules. Update your rules and try again.',
       );
     }
+    if (error is FirebaseException &&
+        (error.code == 'unavailable' ||
+            error.code == 'deadline-exceeded' ||
+            error.code == 'cancelled')) {
+      return context.tr(
+        ar: 'تم تسجيل العملية محلياً، وسيتم مزامنتها تلقائياً عند عودة الإنترنت.',
+        en: 'Action saved locally and will sync automatically when internet is back.',
+      );
+    }
     return context.tr(
       ar: 'تعذر تنفيذ العملية: $error',
       en: 'Operation failed: $error',
@@ -822,6 +778,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
   }
 
   Future<void> _snoozeDose(_DoseMoment dose, int minutes) async {
+    // Capture context before async gap
     final reminderTitle = context.t(AppText.appName);
     final reminderBody = context.tr(
       ar: 'حان وقت تناول ${dose.medication.name}',
@@ -829,7 +786,8 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
     );
 
     final snoozeId =
-        DateTime.now().millisecondsSinceEpoch.remainder(2000000000) + minutes;
+        (DateTime.now().millisecondsSinceEpoch.remainder(2000000000) + minutes)
+            .remainder(2147483647);
     final reminderAt = DateTime.now().toLocal().add(Duration(minutes: minutes));
     await NotificationService.scheduleOneTimeReminder(
       id: snoozeId,
@@ -905,6 +863,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
     String? pharmacyName,
     String? pharmacyLocation,
     String? pharmacyPhone,
+    String? photoUrl,
   }) async {
     await _authService.updateCurrentUserProfile(
       name: name,
@@ -912,6 +871,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
       pharmacyName: pharmacyName,
       pharmacyLocation: pharmacyLocation,
       pharmacyPhone: pharmacyPhone,
+      photoUrl: photoUrl,
     );
   }
 
@@ -929,6 +889,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
       accentColor: AppPalette.patientPrimary,
       showPharmacyFields: false,
       onSaveProfile: _saveCurrentProfile,
+      onUploadPhoto: (bytes) => _authService.uploadProfileImage(bytes),
     );
   }
 
@@ -991,16 +952,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
       case 3:
         return _PatientUpdatesTab(
           onLearnMore: () {
-            _openPlaceholderPage(
-              _SimplePage(
-                title: context.tr(ar: 'تعرّف على المزيد', en: 'Learn more'),
-                description: context.tr(
-                  ar: 'يمكن توسيع هذه الصفحة لاحقاً بمحتوى دعم وإرشادات صحية.',
-                  en: 'This page can be expanded later with support content and health guidance.',
-                ),
-                icon: Icons.info_outline_rounded,
-              ),
-            );
+            _openPlaceholderPage(_PatientKnowledgePage.appGuide(context));
           },
           onOpenReports: () {
             _openPlaceholderPage(
@@ -1013,7 +965,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
       default:
         return _PatientMoreTab(
           onOpenPage: _openPlaceholderPage,
-          medications: medications,
+          medicationHistory: medicationHistory,
           onEditProfile: () => _openProfileEditor(
             profile: profile,
             displayName: displayName,
@@ -1160,17 +1112,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
                             onAddHealthTrack: () {
                               setState(() => _showQuickActions = false);
                               _openPlaceholderPage(
-                                _SimplePage(
-                                  title: context.tr(
-                                    ar: 'أضف تتبع الصحة',
-                                    en: 'Add health tracker',
-                                  ),
-                                  description: context.tr(
-                                    ar: 'صفحة جاهزة لاحقاً لتسجيل الضغط والسكر والنبض.',
-                                    en: 'A page prepared for later blood pressure, glucose, and pulse tracking.',
-                                  ),
-                                  icon: Icons.monitor_heart_outlined,
-                                ),
+                                _PatientKnowledgePage.healthInsights(context),
                               );
                             },
                             onAddDose: _openMedicationEditor,

@@ -1,9 +1,9 @@
 part of 'pharmacist_home.dart';
 
-// تبويب الأدوية المنشورة من الصيدلي لعرضها وإدارتها بسرعة.
 class _PharmacistMedicineTab extends StatelessWidget {
   const _PharmacistMedicineTab({
     required this.medicines,
+    required this.ratingSummary,
     required this.onCreateMedicine,
     required this.onEditMedicine,
     required this.onToggleAvailability,
@@ -11,6 +11,7 @@ class _PharmacistMedicineTab extends StatelessWidget {
   });
 
   final List<SharedMedicineModel> medicines;
+  final PharmacyRatingSummary ratingSummary;
   final VoidCallback onCreateMedicine;
   final ValueChanged<SharedMedicineModel> onEditMedicine;
   final void Function(SharedMedicineModel medicine, bool isAvailable)
@@ -26,6 +27,9 @@ class _PharmacistMedicineTab extends StatelessWidget {
     final needsRxCount = medicines
         .where((medicine) => medicine.requiresPrescription)
         .length;
+    final ratingValue = ratingSummary.hasRatings
+        ? ratingSummary.average.toStringAsFixed(1)
+        : context.tr(ar: 'جديد', en: 'New');
 
     return ListView(
       padding: _pharmacistPagePadding,
@@ -86,7 +90,31 @@ class _PharmacistMedicineTab extends StatelessWidget {
                       value: '$needsRxCount',
                     ),
                   ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: _PharmacyStat(
+                      label: context.tr(ar: 'التقييم', en: 'Rating'),
+                      value: ratingValue,
+                    ),
+                  ),
                 ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                ratingSummary.hasRatings
+                    ? context.tr(
+                        ar: '${ratingSummary.count} تقييم من المرضى لصيدليتك',
+                        en: '${ratingSummary.count} patient reviews for your pharmacy',
+                      )
+                    : context.tr(
+                        ar: 'ستظهر تقييمات المرضى هنا بعد أول مراجعة.',
+                        en: 'Patient ratings will appear here after the first review.',
+                      ),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: AppFontSize.caption,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -155,222 +183,6 @@ class _PharmacistMedicineTab extends StatelessWidget {
   }
 }
 
-// ignore: unused_element
-class _PublishedMedicineCard extends StatelessWidget {
-  const _PublishedMedicineCard({
-    required this.medicine,
-    required this.onEdit,
-    required this.onToggleAvailability,
-    required this.onDelete,
-  });
-
-  final SharedMedicineModel medicine;
-  final VoidCallback onEdit;
-  final ValueChanged<bool> onToggleAvailability;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return DepthCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(AppRadius.xl),
-            ),
-            child: SizedBox(
-              height: 180,
-              child: medicine.imageUrl != null && medicine.imageUrl!.isNotEmpty
-                  ? Image.network(
-                      medicine.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildImageFallback(),
-                    )
-                  : _buildImageFallback(),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            medicine.name,
-                            style: const TextStyle(
-                              fontSize: AppFontSize.sectionTitle,
-                              fontWeight: FontWeight.w900,
-                              color: AppPalette.text,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xxs),
-                          Text(
-                            medicine.pharmacyName,
-                            style: const TextStyle(
-                              fontSize: AppFontSize.body,
-                              fontWeight: FontWeight.w700,
-                              color: AppPalette.pharmacistPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.sm,
-                        vertical: AppSpacing.xs,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            (medicine.isAvailable
-                                    ? AppPalette.success
-                                    : AppPalette.coral)
-                                .withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                      ),
-                      child: Text(
-                        medicine.isAvailable
-                            ? context.tr(ar: 'متوفر الآن', en: 'Available now')
-                            : context.tr(ar: 'غير متوفر', en: 'Out of stock'),
-                        style: TextStyle(
-                          fontSize: AppFontSize.caption,
-                          fontWeight: FontWeight.w800,
-                          color: medicine.isAvailable
-                              ? AppPalette.success
-                              : AppPalette.coral,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    _MedicineInfoChip(
-                      icon: Icons.payments_rounded,
-                      label: medicine.formattedPrice(
-                        isArabic: context.isArabic,
-                      ),
-                    ),
-                    _MedicineInfoChip(
-                      icon: Icons.science_rounded,
-                      label: medicine.dosage,
-                    ),
-                    _MedicineInfoChip(
-                      icon: Icons.inventory_2_rounded,
-                      label: medicine.packageSize,
-                    ),
-                    _MedicineInfoChip(
-                      icon: Icons.category_rounded,
-                      label: medicine.category,
-                    ),
-                    _MedicineInfoChip(
-                      icon: Icons.verified_user_rounded,
-                      label: medicine.requiresPrescription
-                          ? context.tr(
-                              ar: 'يتطلب وصفة',
-                              en: 'Prescription required',
-                            )
-                          : context.tr(
-                              ar: 'بدون وصفة',
-                              en: 'OTC / no prescription',
-                            ),
-                    ),
-                    _MedicineInfoChip(
-                      icon: Icons.location_on_rounded,
-                      label: medicine.location,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  medicine.description,
-                  style: const TextStyle(
-                    fontSize: AppFontSize.body,
-                    color: AppPalette.text,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  context.tr(
-                    ar: 'الاستخدام: ${medicine.usageInstructions}',
-                    en: 'Usage: ${medicine.usageInstructions}',
-                  ),
-                  style: const TextStyle(
-                    fontSize: AppFontSize.body,
-                    color: AppPalette.muted,
-                    height: 1.5,
-                  ),
-                ),
-                const Divider(height: AppSpacing.xl),
-                SwitchListTile(
-                  value: medicine.isAvailable,
-                  onChanged: onToggleAvailability,
-                  contentPadding: EdgeInsets.zero,
-                  activeThumbColor: AppPalette.pharmacistPrimary,
-                  title: Text(
-                    context.tr(ar: 'متاح للمرضى', en: 'Available for patients'),
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onEdit,
-                        icon: const Icon(Icons.edit_rounded),
-                        label: Text(context.tr(ar: 'تعديل', en: 'Edit')),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onDelete,
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        label: Text(context.tr(ar: 'حذف', en: 'Delete')),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageFallback() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFE3F5F1), Color(0xFFC6F6E8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.medication_liquid_rounded,
-          size: 64,
-          color: AppPalette.pharmacistPrimary,
-        ),
-      ),
-    );
-  }
-}
-
 class _MedicineInfoChip extends StatelessWidget {
   const _MedicineInfoChip({required this.icon, required this.label});
 
@@ -415,7 +227,6 @@ class _ModernPublishedMedicineCard extends StatelessWidget {
     required this.onDelete,
   });
 
-  // بيانات الدواء + الإجراءات (تعديل/حذف/تغيير حالة الإتاحة).
   final SharedMedicineModel medicine;
   final VoidCallback onEdit;
   final ValueChanged<bool> onToggleAvailability;

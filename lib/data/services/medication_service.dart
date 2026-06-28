@@ -396,9 +396,16 @@ class MedicationService {
     required DateTime scheduledAt,
   }) async {
     final key = MedicationModel.doseLogKeyFor(scheduledAt);
-    await _medicationsCollection.doc(medication.id).update({
+    // Only restore quantity if this dose was actually recorded as taken
+    final wasActuallyTaken = medication.takenDoseLogs.containsKey(key);
+    final nextRemaining = wasActuallyTaken
+        ? (medication.remainingQuantity + 1).clamp(0, medication.quantity)
+        : medication.remainingQuantity;
+
+    await _medicationsCollection.doc(medication.id).set({
       'takenDoseLogs.$key': FieldValue.delete(),
-    });
+      if (wasActuallyTaken) 'remainingQuantity': nextRemaining,
+    }, SetOptions(merge: true));
 
     final nextTakenLogs = Map<String, dynamic>.fromEntries(
       medication.takenDoseLogs.entries
@@ -418,6 +425,7 @@ class MedicationService {
         payload: _buildReportPayloadFromMedication(
           medication: medication,
           takenDoseLogs: nextTakenLogs,
+          remainingQuantity: nextRemaining,
         ),
       );
     }
@@ -532,7 +540,9 @@ class MedicationService {
       'takenDoseLogs': mappedTakenLogs,
       'skippedDoseLogs': mappedSkippedLogs,
       'isArchived': isArchived ?? medication.isArchived,
-      'archivedAt': archivedAt == null ? medication.archivedAt : Timestamp.fromDate(archivedAt),
+      'archivedAt': archivedAt == null
+          ? medication.archivedAt
+          : Timestamp.fromDate(archivedAt),
       'isDeleted': isDeleted ?? false,
       'deletedReason': deletedReason,
       'deletedAt': deletedAt == null ? null : Timestamp.fromDate(deletedAt),

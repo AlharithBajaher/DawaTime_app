@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +14,7 @@ import '../../app/widgets/profile_editor_sheet.dart';
 import '../../app/widgets/profile_side_drawer.dart';
 import '../../data/models/app_user_model.dart';
 import '../../data/models/password_reset_request_model.dart';
+import '../../data/services/admin_notification_service.dart';
 import '../../data/services/auth_service.dart';
 import '../settings/settings_page.dart';
 
@@ -34,6 +37,8 @@ class AdminHome extends StatefulWidget {
 
 class _AdminHomeState extends State<AdminHome> {
   final AuthService _authService = AuthService();
+  final AdminNotificationService _notificationService =
+      AdminNotificationService();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   List<AppUserModel> _cachedUsers = const <AppUserModel>[];
   bool _hasWelcomedAdmin = false;
@@ -46,6 +51,7 @@ class _AdminHomeState extends State<AdminHome> {
     _AdminSection.patients: 8,
     _AdminSection.access: 6,
   };
+
 
   String _tr({required String ar, required String en}) =>
       context.tr(ar: ar, en: en);
@@ -230,12 +236,300 @@ class _AdminHomeState extends State<AdminHome> {
     });
   }
 
+  void _showNotificationsPanel() {
+    _notificationService.markNotificationsSeen();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          builder: (_, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(AppRadius.xl),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.lg,
+                      AppSpacing.md,
+                      AppSpacing.lg,
+                      0,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.notifications_rounded,
+                            color: AppPalette.adminPrimary),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          _tr(
+                            ar: 'التسجيلات الجديدة',
+                            en: 'New registrations',
+                          ),
+                          style: const TextStyle(
+                            fontSize: AppFontSize.title,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.pop(sheetContext),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: StreamBuilder<
+                        UnmodifiableListView<AdminNotificationItem>>(
+                      stream: _notificationService.watchNewRegistrations(),
+                      builder: (context, snapshot) {
+                        final items = snapshot.data;
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              _tr(
+                                ar: 'حدث خطأ في تحميل الإشعارات',
+                                en: 'Error loading notifications',
+                              ),
+                            ),
+                          );
+                        }
+                        if (items == null || items.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.notifications_none_rounded,
+                                  size: 64,
+                                  color: Colors.grey[300],
+                                ),
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  _tr(
+                                    ar: 'لا توجد تسجيلات جديدة',
+                                    en: 'No new registrations',
+                                  ),
+                                  style: const TextStyle(
+                                    color: AppPalette.muted,
+                                    fontSize: AppFontSize.body,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        return ListView.separated(
+                          controller: scrollController,
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (_, index) {
+                            final item = items[index];
+                            final isPharmacist =
+                                item.role == 'pharmacist';
+                            final isPending =
+                                item.approvalStatus == 'pending';
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: item.isRead
+                                    ? Colors.white
+                                    : AppPalette.adminPrimary
+                                        .withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadius.lg,
+                                ),
+                                border: Border.all(
+                                  color: item.isRead
+                                      ? Colors.grey.withValues(alpha: 0.15)
+                                      : AppPalette.adminPrimary
+                                          .withValues(alpha: 0.25),
+                                ),
+                              ),
+                              padding: const EdgeInsets.all(
+                                AppSpacing.md,
+                              ),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: isPharmacist
+                                        ? AppPalette.amber
+                                            .withValues(alpha: 0.15)
+                                        : AppPalette.patientPrimary
+                                            .withValues(alpha: 0.15),
+                                    child: Icon(
+                                      isPharmacist
+                                          ? Icons.local_pharmacy_rounded
+                                          : Icons.person_rounded,
+                                      color: isPharmacist
+                                          ? AppPalette.amber
+                                          : AppPalette.patientPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(width: AppSpacing.sm),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: AppFontSize.body,
+                                          ),
+                                        ),
+                                        const SizedBox(
+                                            height: AppSpacing.xxs),
+                                        Text(
+                                          item.email,
+                                          style: TextStyle(
+                                            color: AppPalette.muted,
+                                            fontSize:
+                                                AppFontSize.caption,
+                                          ),
+                                        ),
+                                        const SizedBox(
+                                            height: AppSpacing.xxs),
+                                        Row(
+                                          children: [
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets
+                                                      .symmetric(
+                                                horizontal: AppSpacing
+                                                    .xs,
+                                                vertical: 2,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: isPharmacist
+                                                    ? AppPalette.amber
+                                                        .withValues(
+                                                            alpha: 0.12)
+                                                    : AppPalette
+                                                        .patientPrimary
+                                                        .withValues(
+                                                            alpha: 0.12),
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                  AppRadius.pill,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                item.roleLabel,
+                                                style: TextStyle(
+                                                  fontSize: AppFontSize
+                                                      .caption,
+                                                  fontWeight:
+                                                      FontWeight.w700,
+                                                  color: isPharmacist
+                                                      ? AppPalette.amber
+                                                      : AppPalette
+                                                          .patientPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                            if (isPending) ...[
+                                              const SizedBox(
+                                                  width: AppSpacing.xs),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets
+                                                        .symmetric(
+                                                  horizontal:
+                                                      AppSpacing.xs,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: AppPalette
+                                                      .coral
+                                                      .withValues(
+                                                          alpha: 0.12),
+                                                  borderRadius:
+                                                      BorderRadius
+                                                          .circular(
+                                                    AppRadius.pill,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  _tr(
+                                                    ar: 'بانتظار الموافقة',
+                                                    en: 'Awaiting approval',
+                                                  ),
+                                                  style: const TextStyle(
+                                                    fontSize:
+                                                        AppFontSize
+                                                            .caption,
+                                                    fontWeight:
+                                                        FontWeight.w700,
+                                                    color:
+                                                        AppPalette.coral,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isPharmacist && isPending)
+                                    TextButton(
+                                      onPressed: () {
+                                        Navigator.pop(sheetContext);
+                                        setState(() {
+                                          _currentSection =
+                                              _AdminSection.requests;
+                                        });
+                                      },
+                                      child: Text(
+                                        _tr(
+                                          ar: 'اعتماد',
+                                          en: 'Approve',
+                                        ),
+                                        style: const TextStyle(
+                                          color:
+                                              AppPalette.adminPrimary,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _saveCurrentProfile({
     required String name,
     required String username,
     String? pharmacyName,
     String? pharmacyLocation,
     String? pharmacyPhone,
+    String? photoUrl,
   }) async {
     await _authService.updateCurrentUserProfile(
       name: name,
@@ -243,6 +537,7 @@ class _AdminHomeState extends State<AdminHome> {
       pharmacyName: pharmacyName,
       pharmacyLocation: pharmacyLocation,
       pharmacyPhone: pharmacyPhone,
+      photoUrl: photoUrl,
     );
   }
 
@@ -260,6 +555,7 @@ class _AdminHomeState extends State<AdminHome> {
       accentColor: AppPalette.adminPrimary,
       showPharmacyFields: false,
       onSaveProfile: _saveCurrentProfile,
+      onUploadPhoto: (bytes) => _authService.uploadProfileImage(bytes),
     );
   }
 
@@ -905,20 +1201,29 @@ class _AdminHomeState extends State<AdminHome> {
                 children: [
                   Column(
                     children: [
-                      HomeTopActionBar(
-                        profile: currentAdmin,
-                        fallbackName: resolvedAdminName,
-                        roleLabel: _tr(
-                          ar: 'غرفة التحكم الإدارية',
-                          en: 'Administrative control room',
-                        ),
-                        accentColors: const [
-                          AppPalette.adminPrimary,
-                          Color(0xFF8A7CFF),
-                        ],
-                        trailingIcon: Icons.shield_rounded,
-                        onMenuPressed: () =>
-                            _scaffoldKey.currentState?.openDrawer(),
+                      StreamBuilder<int>(
+                        stream: _notificationService.watchUnreadCount(),
+                        builder: (context, badgeSnapshot) {
+                          final badgeCount = badgeSnapshot.data ?? 0;
+                          return HomeTopActionBar(
+                            profile: currentAdmin,
+                            fallbackName: resolvedAdminName,
+                            roleLabel: _tr(
+                              ar: 'غرفة التحكم الإدارية',
+                              en: 'Administrative control room',
+                            ),
+                            accentColors: const [
+                              AppPalette.adminPrimary,
+                              Color(0xFF8A7CFF),
+                            ],
+                            trailingIcon: Icons.notifications_rounded,
+                            trailingBadgeCount: badgeCount,
+                            onTrailingIconPressed: () =>
+                                _showNotificationsPanel(),
+                            onMenuPressed: () =>
+                                _scaffoldKey.currentState?.openDrawer(),
+                          );
+                        },
                       ),
                       Expanded(
                         child: Center(
@@ -1009,8 +1314,13 @@ class _AdminHomeState extends State<AdminHome> {
         activeColor: AppPalette.adminPrimary,
         horizontalInset: AppSpacing.sm,
       onDestinationSelected: (index) {
+        final section = _AdminSection.values[index];
+        if (section == _AdminSection.requests ||
+            section == _AdminSection.pharmacists) {
+          _notificationService.markNotificationsSeen();
+        }
         setState(() {
-          _currentSection = _AdminSection.values[index];
+          _currentSection = section;
         });
       },
         items: [

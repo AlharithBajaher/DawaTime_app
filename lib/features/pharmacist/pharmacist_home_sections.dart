@@ -1,13 +1,13 @@
 part of 'pharmacist_home.dart';
 
-// هذه الصفحة تعرض ملخص تشغيل الصيدلية (النشاط، العاجل، المكتمل)
-// مع عرض سريع لأولويات المخزون اليومية.
 class _PharmacistOverviewTab extends StatelessWidget {
   const _PharmacistOverviewTab({
     required this.active,
     required this.urgent,
     required this.completed,
     required this.tasks,
+    required this.ratings,
+    required this.ratingSummary,
     required this.onCreateTask,
   });
 
@@ -15,6 +15,8 @@ class _PharmacistOverviewTab extends StatelessWidget {
   final int urgent;
   final int completed;
   final List<PharmacyTaskModel> tasks;
+  final List<PharmacyRatingModel> ratings;
+  final PharmacyRatingSummary ratingSummary;
   final VoidCallback onCreateTask;
 
   @override
@@ -130,119 +132,141 @@ class _PharmacistOverviewTab extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: AppSpacing.md),
+        _PharmacyRatingOverviewCard(ratings: ratings, summary: ratingSummary),
       ],
     );
   }
 }
 
-// ignore: unused_element
-class _WorkflowTab extends StatelessWidget {
-  const _WorkflowTab({
-    required this.tasks,
-    required this.onToggle,
-    required this.onAdjust,
-    required this.onEdit,
-    required this.onDelete,
+class _PharmacyRatingOverviewCard extends StatelessWidget {
+  const _PharmacyRatingOverviewCard({
+    required this.ratings,
+    required this.summary,
   });
 
-  final List<PharmacyTaskModel> tasks;
-  final Future<void> Function(PharmacyTaskModel) onToggle;
-  final Future<void> Function(PharmacyTaskModel task, int delta) onAdjust;
-  final ValueChanged<PharmacyTaskModel> onEdit;
-  final ValueChanged<PharmacyTaskModel> onDelete;
+  final List<PharmacyRatingModel> ratings;
+  final PharmacyRatingSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: _pharmacistPagePadding,
-      children: [
-        Text(
-          context.tr(ar: 'إدارة المخزون', en: 'Inventory management'),
-          style: const TextStyle(
-            fontSize: AppFontSize.pageTitle,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          context.tr(
-            ar: 'عناصر المخزون محفوظة داخل مساحة الصيدلية في Firestore ومخصصة لواجهة الصيدلي.',
-            en: 'Inventory items are stored in the pharmacist Firestore workspace.',
-          ),
-          style: const TextStyle(fontSize: AppFontSize.body),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        if (tasks.isEmpty)
-          DepthCard(
-            child: Text(
-              context.tr(
-                ar: 'لا توجد عناصر مخزون حالياً. أضف عنصراً جديداً من الزر العائم.',
-                en: 'No inventory items right now. Add a new item from the floating button.',
-              ),
-              style: const TextStyle(fontSize: AppFontSize.body),
-            ),
-          )
-        else
-          ...tasks.map(
-            (task) => Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: DepthCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xs,
-                  vertical: AppSpacing.xs,
-                ),
-                child: Row(
-                  children: [
-                    Checkbox(
-                      value: task.isOutOfStock,
-                      activeColor: AppPalette.pharmacistPrimary,
-                      visualDensity: VisualDensity.compact,
-                      onChanged: (_) => onToggle(task),
-                    ),
-                    Expanded(child: _WorkflowTile(task: task)),
-                    IconButton(
-                      tooltip: context.tr(
-                        ar: 'خصم وحدة',
-                        en: 'Decrease by one',
-                      ),
-                      onPressed: task.quantity <= 0
-                          ? null
-                          : () => onAdjust(task, -1),
-                      icon: const Icon(Icons.remove_circle_outline_rounded),
-                    ),
-                    IconButton(
-                      tooltip: context.tr(
-                        ar: 'إضافة وحدة',
-                        en: 'Increase by one',
-                      ),
-                      onPressed: () => onAdjust(task, 1),
-                      icon: const Icon(Icons.add_circle_outline_rounded),
-                    ),
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          onEdit(task);
-                        } else {
-                          onDelete(task);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'edit',
-                          child: Text(context.tr(ar: 'تعديل', en: 'Edit')),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text(context.tr(ar: 'حذف', en: 'Delete')),
-                        ),
-                      ],
-                    ),
-                  ],
+    final latestRatings = ratings.take(3).toList(growable: false);
+    return DepthCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.star_rounded, color: Color(0xFFFFB100)),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  context.tr(ar: 'تقييمات الصيدلية', en: 'Pharmacy ratings'),
+                  style: const TextStyle(
+                    fontSize: AppFontSize.title,
+                    fontWeight: FontWeight.w900,
+                    color: AppPalette.text,
+                  ),
                 ),
               ),
+              Text(
+                summary.hasRatings ? summary.average.toStringAsFixed(1) : '--',
+                style: const TextStyle(
+                  fontSize: AppFontSize.sectionTitle,
+                  fontWeight: FontWeight.w900,
+                  color: AppPalette.pharmacistPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            summary.hasRatings
+                ? context.tr(
+                    ar: '${summary.count} تقييم من المرضى',
+                    en: '${summary.count} patient reviews',
+                  )
+                : context.tr(
+                    ar: 'لم تصل تقييمات بعد. ستظهر هنا تلقائياً عند تقييم المرضى للصيدلية.',
+                    en: 'No reviews yet. Patient ratings will appear here automatically.',
+                  ),
+            style: const TextStyle(
+              color: AppPalette.muted,
+              fontSize: AppFontSize.body,
+              height: 1.4,
             ),
           ),
-      ],
+          if (latestRatings.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            ...latestRatings.map(
+              (rating) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: _PharmacistReviewTile(rating: rating),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PharmacistReviewTile extends StatelessWidget {
+  const _PharmacistReviewTile({required this.rating});
+
+  final PharmacyRatingModel rating;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6FBFA),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: const Color(0xFFD8EEE9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  rating.patientName.isEmpty
+                      ? context.tr(ar: 'مريض', en: 'Patient')
+                      : rating.patientName,
+                  style: const TextStyle(
+                    color: AppPalette.text,
+                    fontSize: AppFontSize.body,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              ...List.generate(
+                5,
+                (index) => Icon(
+                  index < rating.rating
+                      ? Icons.star_rounded
+                      : Icons.star_border_rounded,
+                  color: const Color(0xFFFFB100),
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+          if (rating.comment.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              rating.comment,
+              style: const TextStyle(
+                color: AppPalette.muted,
+                fontSize: AppFontSize.body,
+                height: 1.45,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -250,7 +274,6 @@ class _WorkflowTab extends StatelessWidget {
 class _InsightsTab extends StatelessWidget {
   const _InsightsTab({required this.tasks});
 
-  // بيانات المخزون التي تُستخدم لإنتاج بطاقات التحليل والإحصاءات.
   final List<PharmacyTaskModel> tasks;
 
   @override
@@ -374,18 +397,6 @@ class _InsightsTab extends StatelessWidget {
     );
   }
 
-  // ignore: unused_element
-  String _priorityLabel(BuildContext context, String priority) {
-    switch (priority) {
-      case 'high':
-        return context.tr(ar: 'عالية', en: 'High');
-      case 'low':
-        return context.tr(ar: 'منخفضة', en: 'Low');
-      default:
-        return context.tr(ar: 'متوسطة', en: 'Medium');
-    }
-  }
-
   String _unitLabel(BuildContext context, String unit) {
     switch (unit) {
       case 'strip':
@@ -395,86 +406,6 @@ class _InsightsTab extends StatelessWidget {
       default:
         return context.tr(ar: 'علبة', en: 'box');
     }
-  }
-}
-
-// ignore: unused_element
-class _PharmacistAccountTab extends StatelessWidget {
-  const _PharmacistAccountTab({required this.email, required this.onSignOut});
-
-  final String email;
-  final VoidCallback onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: _pharmacistPagePadding,
-      children: [
-        DepthCard(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF143937), Color(0xFF246962)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderColor: Colors.white.withValues(alpha: 0.12),
-          child: Column(
-            children: [
-              const CircleAvatar(
-                radius: 30,
-                backgroundColor: Colors.white24,
-                child: Icon(
-                  Icons.local_pharmacy_rounded,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                context.tr(ar: 'حساب الصيدلي', en: 'Pharmacist account'),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: AppFontSize.sectionTitle,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.xxs),
-              Text(
-                email,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: AppFontSize.body,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        DepthCard(
-          child: Column(
-            children: [
-              _ActionRow(
-                icon: Icons.edit_outlined,
-                title: context.tr(ar: 'تعديل الملف الشخصي', en: 'Edit profile'),
-              ),
-              const Divider(),
-              _ActionRow(
-                icon: Icons.cloud_done_outlined,
-                title: context.tr(
-                  ar: 'بيانات الصيدلية داخل صفحة تعديل الملف',
-                  en: 'Pharmacy details are managed inside the profile editor',
-                ),
-              ),
-              const Divider(),
-              _ActionRow(
-                icon: Icons.logout_rounded,
-                title: context.tr(ar: 'تسجيل الخروج', en: 'Sign out'),
-                onTap: onSignOut,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 }
 
@@ -520,7 +451,6 @@ class _PharmacyStat extends StatelessWidget {
 class _WorkflowTile extends StatelessWidget {
   const _WorkflowTile({required this.task});
 
-  // يمثل عنصر مخزون واحد مع حالة الكمية والتنبيه.
   final PharmacyTaskModel task;
 
   @override
@@ -732,13 +662,14 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
   const _ModernPharmacistAccountTab({
     required this.email,
     required this.displayName,
+    required this.ratingSummary,
     required this.onEditProfile,
     required this.onSignOut,
   });
 
-  // معلومات الحساب المعروضة + أوامر التعديل وتسجيل الخروج.
   final String email;
   final String displayName;
+  final PharmacyRatingSummary ratingSummary;
   final VoidCallback onEditProfile;
   final Future<void> Function() onSignOut;
 
@@ -785,6 +716,49 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white70,
                   fontSize: AppFontSize.body,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        DepthCard(
+          child: Row(
+            children: [
+              const CircleAvatar(
+                backgroundColor: Color(0xFFFFF4D8),
+                child: Icon(Icons.star_rounded, color: Color(0xFFFFB100)),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.tr(ar: 'تقييم الصيدلية', en: 'Pharmacy rating'),
+                      style: const TextStyle(
+                        color: AppPalette.text,
+                        fontSize: AppFontSize.body,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      ratingSummary.hasRatings
+                          ? context.tr(
+                              ar: '${ratingSummary.average.toStringAsFixed(1)} من 5 بناءً على ${ratingSummary.count} تقييم',
+                              en: '${ratingSummary.average.toStringAsFixed(1)} out of 5 from ${ratingSummary.count} reviews',
+                            )
+                          : context.tr(
+                              ar: 'لا توجد تقييمات بعد.',
+                              en: 'No ratings yet.',
+                            ),
+                      style: const TextStyle(
+                        color: AppPalette.muted,
+                        fontSize: AppFontSize.body,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
