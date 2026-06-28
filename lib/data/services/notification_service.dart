@@ -1,10 +1,17 @@
+// ============================================================
+// notification_service.dart
+// DawaTime – unified notification system (doses + stock + inventory)
+// ============================================================
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -12,42 +19,96 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../firebase_options.dart';
 import '../models/medication_model.dart';
 
+// ---------------------------------------------------------------------------
+// Background entry-point (Android isolate)
+// ---------------------------------------------------------------------------
 @pragma('vm:entry-point')
 Future<void> notificationTapBackground(NotificationResponse response) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+  await NotificationService.init(requestPermissions: false);
   await NotificationService.handleNotificationAction(
     response,
     fromBackground: true,
   );
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+/// A bilingual (AR/EN) notification message pair.
+class _BilingualMsg {
+  const _BilingualMsg({
+    required this.titleAr,
+    required this.titleEn,
+    required this.bodyAr,
+    required this.bodyEn,
+  });
+  final String titleAr;
+  final String titleEn;
+  final String bodyAr;
+  final String bodyEn;
+
+  String title(bool isArabic) => isArabic ? titleAr : titleEn;
+  String body(bool isArabic) => isArabic ? bodyAr : bodyEn;
+}
+
+// ---------------------------------------------------------------------------
+// NotificationService
+// ---------------------------------------------------------------------------
 class NotificationService {
-  static const int reminderPlanningWindowDays = 14;
-  static const int _maxSchedulesPerMedication = 120;
-  static const int _lowStockLeadDays = 2;
-  static const String _doseChannelId = 'dawatime_dose_reminders_v8';
-  static const String _doseChannelName = 'DawaTime dose reminders';
-  static const String _doseChannelDescription =
-      'Precise local dose reminders with actions, snooze, and lock-screen visibility.';
-  static const String _stockChannelId = 'dawatime_stock_alerts_v2';
-  static const String _stockChannelName = 'DawaTime stock alerts';
-  static const String _stockChannelDescription =
-      'Low-stock reminders for medicines and pharmacy inventory.';
-  static const String _androidReminderSound = 'dawatime_reminder';
-  static const String _actionTaken = 'dose_taken';
-  static const String _actionSkip = 'dose_skip';
+  // ── Channel IDs ──────────────────────────────────────────────────────────
+  static const String _doseChannelId   = 'dawatime_dose_v9';
+  static const String _stockChannelId  = 'dawatime_stock_v4';
+  static const String _syncChannelId   = 'dawatime_sync_v2';
+
+  // ── Channel names (shown in Android settings) ────────────────────────────
+  static const String _doseChannelName  = 'تذكير الجرعة / Dose Reminder';
+  static const String _stockChannelName = 'تنبيه الكمية / Stock Alert';
+  static const String _syncChannelName  = 'تأكيد الإجراء / Action Status';
+
+  // ── Android raw-resource sounds (res/raw/*.mp3) ──────────────────────────
+  static const String _doseSound  = 'dawatime_reminder';
+  static const String _stockSound = 'dawatime_reminder_long';
+
+  // ── Notification action IDs ──────────────────────────────────────────────
+  static const String _actionTaken    = 'dose_taken';
+  static const String _actionSkip     = 'dose_skip';
   static const String _actionSnooze30 = 'dose_snooze_30';
   static const String _actionSnooze60 = 'dose_snooze_60';
 
-  static final FlutterLocalNotificationsPlugin _notifications =
-      FlutterLocalNotificationsPlugin();
-  static const MethodChannel _timeZoneChannel = MethodChannel(
-    'dawatime/timezone',
-  );
+  // ── Planning constants ───────────────────────────────────────────────────
+  /// Days ahead for which dose reminders are pre-scheduled.
+  static const int reminderPlanningWindowDays = 14;
 
-  static Future<void> init() async {
-    if (kIsWeb) {
-      return;
-    }
+  /// Hard cap on scheduled notifications per medication.
+  static const int _maxDoseSchedules = 120;
+
+  // ── Low-stock constants ──────────────────────────────────────────────────
+  /// Start reminding when remaining doses cover this many days or fewer.
+  static const int _lowStockLeadDays = 3;
+
+  /// Considered "critical" when this many doses remain.
+  static const int _criticalDosesLeft = 3;
+
+  /// Times of day for stock reminders (24-h).
+  static const List<({int hour, int minute})> _stockTimes = [
+    (hour: 9,  minute: 0),   // 9:00 AM
+    (hour: 13, minute: 0),   // 1:00 PM
+    (hour: 18, minute: 0),   // 6:00 PM
+  ];
+
+  // ── Internal ─────────────────────────────────────────────────────────────
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+  static bool _initialized = false;
+  static const MethodChannel _tzChannel = MethodChannel('dawatime/timezone');
+
+  // =========================================================================
+  // PUBLIC: Initialisation
+  // =========================================================================
+  static Future<void> init({bool requestPermissions = true}) async {
+    if (kIsWeb || _initialized) return;
 
     tz.initializeTimeZones();
     await _configureLocalTimeZone();
@@ -58,1009 +119,1085 @@ class NotificationService {
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
-    const settings = InitializationSettings(android: android, iOS: ios);
-
-    await _notifications.initialize(
-      settings,
-      onDidReceiveNotificationResponse: _onNotificationResponse,
+    await _plugin.initialize(
+      const InitializationSettings(android: android, iOS: ios),
+      onDidReceiveNotificationResponse: _onForegroundResponse,
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
 
-    final androidImplementation = _notifications
+    final android_ = _plugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    await androidImplementation?.createNotificationChannel(
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    // Dose channel – alarm priority, custom sound, inline actions
+    await android_?.createNotificationChannel(
       const AndroidNotificationChannel(
-        _doseChannelId,
-        _doseChannelName,
-        description: _doseChannelDescription,
+        _doseChannelId, _doseChannelName,
         importance: Importance.max,
         playSound: true,
-        sound: RawResourceAndroidNotificationSound(_androidReminderSound),
+        sound: RawResourceAndroidNotificationSound(_doseSound),
         enableVibration: true,
         audioAttributesUsage: AudioAttributesUsage.alarm,
         showBadge: true,
       ),
     );
-    await androidImplementation?.createNotificationChannel(
+    // Stock channel – high priority, long stock sound
+    await android_?.createNotificationChannel(
       const AndroidNotificationChannel(
-        _stockChannelId,
-        _stockChannelName,
-        description: _stockChannelDescription,
+        _stockChannelId, _stockChannelName,
         importance: Importance.high,
         playSound: true,
-        sound: RawResourceAndroidNotificationSound(_androidReminderSound),
+        sound: RawResourceAndroidNotificationSound(_stockSound),
         enableVibration: true,
         audioAttributesUsage: AudioAttributesUsage.notification,
         showBadge: true,
       ),
     );
-    await androidImplementation?.requestNotificationsPermission();
-    await androidImplementation?.requestExactAlarmsPermission();
+    // Sync / confirmation channel – silent
+    await android_?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _syncChannelId, _syncChannelName,
+        importance: Importance.low,
+        playSound: false,
+        enableVibration: false,
+        showBadge: false,
+      ),
+    );
+
+    if (requestPermissions) {
+      await android_?.requestNotificationsPermission();
+      await android_?.requestExactAlarmsPermission();
+    }
+    _initialized = true;
   }
 
-  static Future<void> scheduleDailyNotification({
-    required int id,
-    required String title,
-    required String body,
-    required int hour,
-    required int minute,
-  }) async {
-    if (kIsWeb) {
-      return;
-    }
+  // =========================================================================
+  // PUBLIC: Dose reminders
+  // =========================================================================
 
-    final next = _buildIntervalReminders(
-      doseTimes: [MedicationDoseTime(hour: hour, minute: minute)],
-      intervalDays: 1,
-      anchorDate: DateTime.now(),
-    );
-    if (next.isEmpty) {
-      return;
-    }
-
-    await scheduleOneTimeReminder(
-      id: id,
-      title: title,
-      body: body,
-      reminderAt: next.first.toLocal(),
-    );
-  }
-
+  /// Returns how many notification IDs are needed for a medication schedule.
   static int requiredNotificationCount({
     required int doseCount,
     required int intervalDays,
   }) {
-    final safeDoseCount = doseCount.clamp(1, 24).toInt();
-    final safeInterval = intervalDays
-        .clamp(1, reminderPlanningWindowDays)
-        .toInt();
-    final cycleCount = (reminderPlanningWindowDays / safeInterval).ceil() + 1;
-    return safeDoseCount * cycleCount;
+    final doses    = doseCount.clamp(1, 24);
+    final interval = intervalDays.clamp(1, reminderPlanningWindowDays);
+    final cycles   = (reminderPlanningWindowDays / interval).ceil() + 1;
+    return doses * cycles;
   }
 
-  static int lowStockNotificationIdForMedication(String medicationId) {
-    final hash = medicationId.hashCode.abs();
-    return 1000000000 + (hash % 900000000);
-  }
-
-  static int inventoryNotificationIdForItem(String itemId) {
-    final hash = itemId.hashCode.abs();
-    return 1900000000 + (hash % 90000000);
-  }
-
-  static Future<void> syncInventoryAlert({
-    required String itemId,
-    required String itemName,
-    required int quantity,
-    required int minQuantity,
-  }) async {
-    if (kIsWeb) {
-      return;
-    }
-
-    final id = inventoryNotificationIdForItem(itemId);
-    await cancelNotification(id);
-
-    if (quantity <= 0) {
-      await showImmediateInventoryAlert(
-        id: id,
-        title: 'DawaTime',
-        body: '$itemName is out of stock. Please refill immediately.',
-      );
-      return;
-    }
-
-    if (quantity <= minQuantity) {
-      await showImmediateInventoryAlert(
-        id: id,
-        title: 'DawaTime',
-        body: '$itemName stock is low ($quantity left). Please refill soon.',
-      );
-    }
-  }
-
-  static Future<void> showImmediateInventoryAlert({
-    required int id,
-    required String title,
-    required String body,
-  }) async {
-    if (kIsWeb) {
-      return;
-    }
-
-    await _notifications.show(id, title, body, _lowStockNotificationDetails());
-  }
-
+  /// Schedules all upcoming dose reminders for a medication.
+  /// [ids] must have at least [requiredNotificationCount] elements.
+  /// Pass [isArabic] to localise the notification text.
   static Future<void> scheduleMedicationReminders({
     required List<int> ids,
-    required String title,
-    required String body,
     required List<MedicationDoseTime> doseTimes,
     required int intervalDays,
     required DateTime anchorDate,
-    String? medicationId,
-    String? medicationName,
-    String? medicationDose,
+    required String medicationId,
+    required String medicationName,
+    required String medicationDose,
+    required bool isArabic,
   }) async {
-    if (kIsWeb || doseTimes.isEmpty) {
-      return;
-    }
+    if (kIsWeb || doseTimes.isEmpty) return;
     await _configureLocalTimeZone();
 
-    final safeInterval = intervalDays
-        .clamp(1, reminderPlanningWindowDays)
-        .toInt();
-    final localizedAnchorDate = anchorDate.toLocal();
-    final upcomingReminders = _buildIntervalReminders(
+    final safeInterval = intervalDays.clamp(1, reminderPlanningWindowDays);
+    final slots = _buildIntervalSlots(
       doseTimes: doseTimes,
       intervalDays: safeInterval,
-      anchorDate: localizedAnchorDate,
+      anchorDate: anchorDate.toLocal(),
     );
-
-    final scheduleCount = upcomingReminders.length
-        .clamp(0, _maxSchedulesPerMedication)
-        .toInt();
-    if (ids.length < scheduleCount) {
+    final count = slots.length.clamp(0, _maxDoseSchedules);
+    if (ids.length < count) {
       throw ArgumentError(
-        'Not enough notification ids for interval-based reminders.',
+        'Need $count notification IDs for this schedule, got ${ids.length}.',
       );
     }
 
-    for (var index = 0; index < scheduleCount; index++) {
-      final scheduled = upcomingReminders[index];
-      final payload = _DoseReminderPayload(
-        notificationId: ids[index],
-        medicationId: medicationId ?? '',
-        medicationName: medicationName ?? title,
-        medicationDose: medicationDose ?? '',
-        hour: scheduled.hour,
-        minute: scheduled.minute,
-        scheduledAtIso: scheduled.toLocal().toIso8601String(),
-        title: title,
-        body: body,
+    final title = isArabic ? 'دواء تايم 💊' : 'DawaTime 💊';
+    final body  = isArabic
+        ? 'حان وقت تناول $medicationName'
+        : 'Time to take $medicationName';
+
+    for (var i = 0; i < count; i++) {
+      final payload = _DosePayload(
+        notificationId: ids[i],
+        medicationId: medicationId,
+        medicationName: medicationName,
+        medicationDose: medicationDose,
+        hour: slots[i].hour,
+        minute: slots[i].minute,
+        scheduledAtIso: slots[i].toLocal().toIso8601String(),
+        titleAr: 'دواء تايم 💊',
+        titleEn: 'DawaTime 💊',
+        bodyAr: 'حان وقت تناول $medicationName',
+        bodyEn: 'Time to take $medicationName',
       ).toJson();
-      await _scheduleReminderSafely(
-        id: ids[index],
+
+      await _scheduleDoseSafely(
+        id: ids[i],
         title: title,
         body: body,
-        scheduledAt: scheduled,
+        scheduledAt: slots[i],
         payload: payload,
       );
     }
+
+    // Cancel unused IDs
+    if (ids.length > count) {
+      await cancelNotifications(ids.sublist(count));
+    }
   }
 
+  /// Schedules a single one-time reminder (used for snooze, etc.).
   static Future<void> scheduleOneTimeReminder({
     required int id,
     required String title,
     required String body,
     required DateTime reminderAt,
-    String? medicationId,
-    String? medicationName,
-    String? medicationDose,
+    String medicationId    = '',
+    String medicationName  = '',
+    String medicationDose  = '',
   }) async {
-    if (kIsWeb) {
-      return;
-    }
+    if (kIsWeb) return;
     await _configureLocalTimeZone();
 
-    final scheduledDate = reminderAt.toLocal();
-    final payload = _DoseReminderPayload(
+    final local = reminderAt.toLocal();
+    final payload = _DosePayload(
       notificationId: id,
-      medicationId: medicationId ?? '',
-      medicationName: medicationName ?? title,
-      medicationDose: medicationDose ?? '',
-      hour: scheduledDate.hour,
-      minute: scheduledDate.minute,
-      scheduledAtIso: scheduledDate.toIso8601String(),
-      title: title,
-      body: body,
+      medicationId: medicationId,
+      medicationName: medicationName,
+      medicationDose: medicationDose,
+      hour: local.hour,
+      minute: local.minute,
+      scheduledAtIso: local.toIso8601String(),
+      titleAr: title, titleEn: title,
+      bodyAr: body,   bodyEn: body,
     ).toJson();
 
-    await _scheduleReminderSafely(
+    await _scheduleDoseSafely(
       id: id,
       title: title,
       body: body,
-      scheduledAt: tz.TZDateTime.from(scheduledDate, tz.local),
+      scheduledAt: tz.TZDateTime.from(local, tz.local),
       payload: payload,
     );
   }
 
-  static Future<void> scheduleLowStockReminder({
-    required int id,
-    required String title,
-    required String body,
-    required DateTime reminderAt,
+  // =========================================================================
+  // PUBLIC: Stock reminders (patient medication quantity)
+  // =========================================================================
+
+  /// ID of the low-stock reminder for a patient medication.
+  static int lowStockNotificationIdForMedication(String medicationId) =>
+      1000000000 + (medicationId.hashCode.abs() % 900000000);
+
+  /// ID of the inventory alert for a pharmacist item.
+  static int inventoryNotificationIdForItem(String itemId) =>
+      1900000000 + (itemId.hashCode.abs() % 90000000);
+
+  /// Called after every dose taken. Evaluates whether stock reminders should
+  /// be (re)scheduled based on remaining quantity. Pass the full medication
+  /// data map and [isArabic] for correct language.
+  static Future<void> syncMedicationStockReminders({
+    required String medicationId,
+    required String medicationName,
+    required int totalQuantity,
+    required int remainingQuantity,
+    required int dosesPerDay,          // number of doseTimes entries
+    required int intervalDays,
+    required bool isArabic,
   }) async {
-    if (kIsWeb) {
-      return;
-    }
+    if (kIsWeb) return;
+
+    // Always cancel previous stock reminders first.
+    await _cancelAllStockRemindersForMedication(medicationId);
+
+    if (remainingQuantity <= 0 || dosesPerDay <= 0 || totalQuantity <= 0) return;
+
+    // How many calendar days until depletion.
+    final daysLeft = ((remainingQuantity / dosesPerDay).ceil() * intervalDays)
+        .clamp(1, 3650);
+
+    // Nothing to schedule if depletion is far away.
+    if (daysLeft > reminderPlanningWindowDays + _lowStockLeadDays) return;
+
     await _configureLocalTimeZone();
-
     final now = DateTime.now().toLocal();
-    DateTime safeReminderAt = reminderAt;
-    if (!safeReminderAt.isAfter(now)) {
-      final tomorrow = now.add(const Duration(days: 1));
-      safeReminderAt = DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
-    }
 
-    await _scheduleReminderSafely(
-      id: id,
-      title: title,
-      body: body,
-      scheduledAt: tz.TZDateTime.from(safeReminderAt, tz.local),
-      details: _lowStockNotificationDetails(),
-    );
+    // ── Build the list of schedule slots ───────────────────────────────────
+    // We schedule on: today if already in the lead window, plus each of the
+    // next [_lowStockLeadDays] days — at each of the _stockTimes.
+    final startDay = (daysLeft - _lowStockLeadDays).clamp(0, daysLeft);
+
+    for (var dayOffset = startDay; dayOffset <= daysLeft; dayOffset++) {
+      for (final t in _stockTimes) {
+        final slot = DateTime(
+          now.year, now.month, now.day,
+          t.hour, t.minute,
+        ).add(Duration(days: dayOffset));
+
+        if (!slot.isAfter(now)) continue;   // skip past slots
+
+        final isCritical = remainingQuantity <= _criticalDosesLeft;
+        final msg = _buildStockMessage(
+          medicationName: medicationName,
+          remaining: remainingQuantity,
+          daysLeft: daysLeft,
+          isCritical: isCritical,
+          isArabic: isArabic,
+        );
+
+        final notifId = _stockSlotId(medicationId, dayOffset, t.hour, t.minute);
+        await _scheduleStockSafely(
+          id: notifId,
+          title: msg.title(isArabic),
+          body: msg.body(isArabic),
+          scheduledAt: tz.TZDateTime.from(slot, tz.local),
+        );
+      }
+    }
   }
 
-  static Future<void> cancelNotifications(List<int> ids) async {
-    if (kIsWeb) {
+  // ── Pharmacist inventory ──────────────────────────────────────────────────
+
+  /// Shows or schedules alerts for a pharmacist inventory item.
+  /// Called whenever quantity changes.
+  static Future<void> syncInventoryAlert({
+    required String itemId,
+    required String itemName,
+    required int quantity,
+    required int minQuantity,
+    required bool isArabic,
+  }) async {
+    if (kIsWeb) return;
+    await _cancelAllInventoryRemindersForItem(itemId);
+
+    if (quantity <= 0) {
+      // Immediate + same-day repeats (out of stock)
+      for (final t in _stockTimes) {
+        final slot = _nextOccurrence(t.hour, t.minute);
+        final msg = _buildInventoryMessage(
+          itemName: itemName,
+          quantity: quantity,
+          minQuantity: minQuantity,
+          isArabic: isArabic,
+        );
+        await _scheduleStockSafely(
+          id: _inventorySlotId(itemId, t.hour, t.minute),
+          title: msg.title(isArabic),
+          body: msg.body(isArabic),
+          scheduledAt: tz.TZDateTime.from(slot, tz.local),
+        );
+      }
       return;
     }
 
+    if (quantity <= minQuantity) {
+      // Low stock → 3 times a day
+      await _configureLocalTimeZone();
+      for (final t in _stockTimes) {
+        final slot = _nextOccurrence(t.hour, t.minute);
+        final msg = _buildInventoryMessage(
+          itemName: itemName,
+          quantity: quantity,
+          minQuantity: minQuantity,
+          isArabic: isArabic,
+        );
+        await _scheduleStockSafely(
+          id: _inventorySlotId(itemId, t.hour, t.minute),
+          title: msg.title(isArabic),
+          body: msg.body(isArabic),
+          scheduledAt: tz.TZDateTime.from(slot, tz.local),
+        );
+      }
+    }
+    // quantity > minQuantity → no alert needed
+  }
+
+  // =========================================================================
+  // PUBLIC: Cancel helpers
+  // =========================================================================
+
+  static Future<void> cancelNotifications(List<int> ids) async {
+    if (kIsWeb) return;
     for (final id in ids) {
-      await _notifications.cancel(id);
+      await _plugin.cancel(id);
     }
   }
 
   static Future<void> cancelNotification(int id) async {
-    if (kIsWeb) {
-      return;
-    }
-
-    await _notifications.cancel(id);
+    if (kIsWeb) return;
+    await _plugin.cancel(id);
   }
 
   static Future<void> cancelAllNotifications() async {
-    if (kIsWeb) {
-      return;
-    }
-
-    await _notifications.cancelAll();
+    if (kIsWeb) return;
+    await _plugin.cancelAll();
   }
+
+  // =========================================================================
+  // PUBLIC: Notification action handler (tap / Take / Skip / Snooze)
+  // =========================================================================
 
   static Future<void> handleNotificationAction(
     NotificationResponse response, {
     bool fromBackground = false,
   }) async {
-    if (kIsWeb) {
-      return;
-    }
+    if (kIsWeb) return;
 
-    final payload = _DoseReminderPayload.tryParse(response.payload);
-    if (payload == null) {
-      return;
-    }
+    final payload = _DosePayload.tryParse(response.payload);
+    if (payload == null) return;
 
-    final actionId = response.actionId ?? '';
-    if (actionId.isEmpty) {
-      return;
-    }
+    final action = response.actionId ?? '';
+    if (action.isEmpty) return;
 
     try {
-      if (actionId == _actionSnooze30 || actionId == _actionSnooze60) {
-        final minutes = actionId == _actionSnooze30 ? 30 : 60;
-        await _scheduleSnoozeReminder(payload: payload, minutes: minutes);
+      if (action == _actionSnooze30 || action == _actionSnooze60) {
+        final minutes = action == _actionSnooze30 ? 30 : 60;
+        await _executeSnooze(payload: payload, minutes: minutes);
         return;
       }
-
-      if (actionId == _actionTaken) {
-        await _markDoseStatus(payload: payload, markAsTaken: true);
-        return;
-      }
-
-      if (actionId == _actionSkip) {
-        await _markDoseStatus(payload: payload, markAsTaken: false);
+      if (action == _actionTaken || action == _actionSkip) {
+        final markTaken = action == _actionTaken;
+        final queued = await _commitDoseStatus(
+          payload: payload,
+          markAsTaken: markTaken,
+        );
+        await _showSyncFeedback(
+          payload: payload,
+          markAsTaken: markTaken,
+          queued: queued,
+        );
         return;
       }
     } catch (_) {
-      // Ignore action failures in background isolate to prevent crashes.
+      if (action == _actionTaken || action == _actionSkip) {
+        await _showSyncFeedback(
+          payload: payload,
+          markAsTaken: action == _actionTaken,
+          queued: true,
+        );
+      }
     }
-
-    if (fromBackground) {
-      return;
-    }
   }
 
-  static NotificationDetails _notificationDetails() {
-    return NotificationDetails(
-      android: AndroidNotificationDetails(
-        _doseChannelId,
-        _doseChannelName,
-        channelDescription: _doseChannelDescription,
-        icon: '@mipmap/ic_launcher',
-        importance: Importance.max,
-        priority: Priority.high,
-        category: AndroidNotificationCategory.alarm,
-        visibility: NotificationVisibility.public,
-        fullScreenIntent: true,
-        playSound: true,
-        sound: const RawResourceAndroidNotificationSound(_androidReminderSound),
-        enableVibration: true,
-        vibrationPattern: Int64List.fromList(<int>[
-          0,
-          900,
-          350,
-          1100,
-          350,
-          1300,
-        ]),
-        audioAttributesUsage: AudioAttributesUsage.alarm,
-        ticker: 'DawaTime reminder',
-        channelShowBadge: true,
-        autoCancel: true,
-        ongoing: false,
-        actions: const <AndroidNotificationAction>[
-          AndroidNotificationAction(
-            _actionTaken,
-            'Take',
-            showsUserInterface: false,
-            cancelNotification: true,
-          ),
-          AndroidNotificationAction(
-            _actionSnooze30,
-            'Snooze 30m',
-            showsUserInterface: false,
-            cancelNotification: true,
-          ),
-          AndroidNotificationAction(
-            _actionSnooze60,
-            'Snooze 60m',
-            showsUserInterface: false,
-            cancelNotification: true,
-          ),
-          AndroidNotificationAction(
-            _actionSkip,
-            'Skip',
-            showsUserInterface: false,
-            cancelNotification: true,
-          ),
-        ],
-      ),
-      iOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        interruptionLevel: InterruptionLevel.timeSensitive,
-      ),
-    );
-  }
+  // =========================================================================
+  // PRIVATE: Notification details builders
+  // =========================================================================
 
-  static NotificationDetails _lowStockNotificationDetails() {
-    return NotificationDetails(
-      android: AndroidNotificationDetails(
-        _stockChannelId,
-        _stockChannelName,
-        channelDescription: _stockChannelDescription,
-        icon: '@mipmap/ic_launcher',
-        importance: Importance.high,
-        priority: Priority.high,
-        category: AndroidNotificationCategory.reminder,
-        visibility: NotificationVisibility.public,
-        fullScreenIntent: false,
-        playSound: true,
-        sound: const RawResourceAndroidNotificationSound(_androidReminderSound),
-        enableVibration: true,
-        vibrationPattern: Int64List.fromList(<int>[0, 500, 250, 700]),
-        audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
-        ticker: 'DawaTime low stock',
-        channelShowBadge: true,
-        autoCancel: true,
-        ongoing: false,
-      ),
-      iOS: const DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        interruptionLevel: InterruptionLevel.active,
-      ),
-    );
-  }
+  static NotificationDetails _doseDetails() => NotificationDetails(
+    android: AndroidNotificationDetails(
+      _doseChannelId, _doseChannelName,
+      icon: '@mipmap/ic_launcher',
+      importance: Importance.max,
+      priority: Priority.high,
+      category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
+      fullScreenIntent: true,
+      playSound: true,
+      sound: const RawResourceAndroidNotificationSound(_doseSound),
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 900, 350, 1100, 350, 1300]),
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      ticker: 'DawaTime',
+      channelShowBadge: true,
+      autoCancel: true,
+      actions: const [
+        AndroidNotificationAction(
+          _actionTaken, 'تناولت / Taken',
+          showsUserInterface: false, cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          _actionSkip, 'تخطي / Skip',
+          showsUserInterface: false, cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          _actionSnooze30, 'تأجيل 30د / Snooze 30m',
+          showsUserInterface: false, cancelNotification: true,
+        ),
+      ],
+    ),
+    iOS: const DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      interruptionLevel: InterruptionLevel.timeSensitive,
+    ),
+  );
 
-  static Future<void> _onNotificationResponse(
-    NotificationResponse response,
-  ) async {
-    await handleNotificationAction(response);
-  }
+  static NotificationDetails _stockDetails() => NotificationDetails(
+    android: AndroidNotificationDetails(
+      _stockChannelId, _stockChannelName,
+      icon: '@mipmap/ic_launcher',
+      importance: Importance.high,
+      priority: Priority.high,
+      category: AndroidNotificationCategory.reminder,
+      visibility: NotificationVisibility.public,
+      playSound: true,
+      sound: const RawResourceAndroidNotificationSound(_stockSound),
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 500, 250, 700]),
+      audioAttributesUsage: AudioAttributesUsage.notification,
+      ticker: 'DawaTime',
+      channelShowBadge: true,
+      autoCancel: true,
+    ),
+    iOS: const DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      interruptionLevel: InterruptionLevel.active,
+    ),
+  );
 
-  static Future<void> _scheduleReminderSafely({
+  static const NotificationDetails _syncDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      _syncChannelId, _syncChannelName,
+      icon: '@mipmap/ic_launcher',
+      importance: Importance.low,
+      priority: Priority.low,
+      category: AndroidNotificationCategory.status,
+      visibility: NotificationVisibility.public,
+      playSound: false,
+      enableVibration: false,
+      channelShowBadge: false,
+      autoCancel: true,
+    ),
+    iOS: DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: false,
+      presentSound: false,
+      interruptionLevel: InterruptionLevel.passive,
+    ),
+  );
+
+  // =========================================================================
+  // PRIVATE: Schedulers
+  // =========================================================================
+
+  static Future<void> _scheduleDoseSafely({
     required int id,
     required String title,
     required String body,
     required tz.TZDateTime scheduledAt,
-    DateTimeComponents? matchDateTimeComponents,
     String? payload,
-    NotificationDetails? details,
   }) async {
-    await _ensureAndroidPermissionState();
-    final resolvedDetails = details ?? _notificationDetails();
+    await _ensureAndroidPermissions();
     try {
-      await _notifications.zonedSchedule(
-        id,
-        title,
-        body,
-        scheduledAt,
-        resolvedDetails,
-        // Always try exact first for on-time medication alerts.
+      await _plugin.zonedSchedule(
+        id, title, body, scheduledAt, _doseDetails(),
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        matchDateTimeComponents: matchDateTimeComponents,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         payload: payload,
       );
     } catch (_) {
-      final androidImplementation = _notifications
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
-      await androidImplementation?.requestExactAlarmsPermission();
+      // Retry requesting exact alarm permission then try once more
+      final android_ = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await android_?.requestExactAlarmsPermission();
       try {
-        await _notifications.zonedSchedule(
-          id,
-          title,
-          body,
-          scheduledAt,
-          resolvedDetails,
+        await _plugin.zonedSchedule(
+          id, title, body, scheduledAt, _doseDetails(),
           androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          matchDateTimeComponents: matchDateTimeComponents,
           uiLocalNotificationDateInterpretation:
               UILocalNotificationDateInterpretation.absoluteTime,
           payload: payload,
         );
-        return;
-      } catch (_) {}
+      } catch (_) {
+        // Final fallback: inexact
+        await _plugin.zonedSchedule(
+          id, title, body, scheduledAt, _doseDetails(),
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          payload: payload,
+        );
+      }
+    }
+  }
 
-      await _notifications.zonedSchedule(
-        id,
-        title,
-        body,
-        scheduledAt,
-        resolvedDetails,
+  static Future<void> _scheduleStockSafely({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime scheduledAt,
+  }) async {
+    await _ensureBasicPermission();
+    try {
+      await _plugin.zonedSchedule(
+        id, title, body, scheduledAt, _stockDetails(),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: matchDateTimeComponents,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
-        payload: payload,
       );
+    } catch (_) {
+      // Ignore on platforms that don't support scheduling
     }
   }
 
-  static Future<void> _ensureAndroidPermissionState() async {
-    if (kIsWeb) {
-      return;
-    }
-    final androidImplementation = _notifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    if (androidImplementation == null) {
-      return;
-    }
+  // =========================================================================
+  // PRIVATE: Snooze
+  // =========================================================================
 
-    try {
-      final enabled = await androidImplementation.areNotificationsEnabled();
-      if (enabled == false) {
-        await androidImplementation.requestNotificationsPermission();
-      }
-    } catch (_) {
-      // Continue gracefully on OEMs that do not expose this check reliably.
-    }
-
-    try {
-      final canExact = await androidImplementation
-          .canScheduleExactNotifications();
-      if (canExact == false) {
-        await androidImplementation.requestExactAlarmsPermission();
-      }
-    } catch (_) {
-      // Continue; scheduler has inexact fallback anyway.
-    }
-
-    try {
-      await androidImplementation.requestFullScreenIntentPermission();
-    } catch (_) {
-      // Continue gracefully if OEM/framework doesn't expose this API.
-    }
-  }
-
-  static Future<void> _scheduleSnoozeReminder({
-    required _DoseReminderPayload payload,
+  static Future<void> _executeSnooze({
+    required _DosePayload payload,
     required int minutes,
   }) async {
     tz.initializeTimeZones();
     await _configureLocalTimeZone();
-
-    final now = tz.TZDateTime.now(tz.local);
-    final scheduled = now.add(Duration(minutes: minutes));
-    final snoozeId = _snoozeNotificationId(payload, minutes);
+    final snoozeAt = tz.TZDateTime.now(tz.local).add(Duration(minutes: minutes));
+    final snoozeId = _snoozeId(payload, minutes);
     await scheduleOneTimeReminder(
       id: snoozeId,
-      title: payload.title.isEmpty ? 'DawaTime' : payload.title,
-      body: payload.body.isEmpty
-          ? 'It is time to take ${payload.medicationName}'
-          : payload.body,
-      reminderAt: scheduled.toLocal(),
+      title: payload.titleEn.isEmpty ? 'DawaTime 💊' : payload.titleEn,
+      body: payload.bodyEn.isEmpty
+          ? 'Time to take ${payload.medicationName}'
+          : payload.bodyEn,
+      reminderAt: snoozeAt.toLocal(),
       medicationId: payload.medicationId,
       medicationName: payload.medicationName,
       medicationDose: payload.medicationDose,
     );
   }
 
-  static int _snoozeNotificationId(_DoseReminderPayload payload, int minutes) {
-    final seed =
-        '${payload.medicationId}_${payload.notificationId}_${payload.hour}_${payload.minute}_$minutes';
-    final hash = seed.hashCode.abs();
-    final timeSalt = DateTime.now().microsecondsSinceEpoch.remainder(1000000);
-    return (hash + timeSalt + (minutes * 31)).remainder(2147483000);
+  static int _snoozeId(_DosePayload p, int minutes) {
+    final seed = '${p.medicationId}_${p.notificationId}_${p.hour}_${p.minute}_$minutes';
+    final salt = DateTime.now().microsecondsSinceEpoch.remainder(1000000);
+    return (seed.hashCode.abs() + salt + minutes * 31).remainder(2147483000);
   }
 
-  static Future<void> _markDoseStatus({
-    required _DoseReminderPayload payload,
+  // =========================================================================
+  // PRIVATE: Dose status (Take / Skip from notification)
+  // =========================================================================
+
+  static Future<bool> _commitDoseStatus({
+    required _DosePayload payload,
     required bool markAsTaken,
   }) async {
-    if (payload.medicationId.isEmpty) {
-      return;
-    }
+    if (payload.medicationId.isEmpty) return false;
+    await _ensureFirebaseReady();
+    await _ensureAuthLoaded();
+    if (FirebaseAuth.instance.currentUser == null) return false;
 
-    await _ensureFirebaseInitialized();
-    await _ensureAuthenticatedUserLoaded();
-    if (FirebaseAuth.instance.currentUser == null) {
-      return;
-    }
-    final firestore = FirebaseFirestore.instance;
+    final fs  = FirebaseFirestore.instance;
     final now = DateTime.now().toLocal();
     final scheduledAt = _resolveScheduledAt(payload, now);
     final key = MedicationModel.doseLogKeyFor(scheduledAt);
-    final medicationRef = firestore
-        .collection('medications')
-        .doc(payload.medicationId);
-    final reportRef = firestore
-        .collection('medication_reports')
-        .doc(payload.medicationId);
-    final snapshot = await medicationRef.get(
-      const GetOptions(source: Source.serverAndCache),
-    );
-    if (!snapshot.exists) {
-      return;
-    }
-    final data = snapshot.data() ?? const <String, dynamic>{};
-    final ownerId = data['userId'] as String? ?? '';
-    if (ownerId != FirebaseAuth.instance.currentUser?.uid) {
-      return;
+    final medRef    = fs.collection('medications').doc(payload.medicationId);
+    final reportRef = fs.collection('medication_reports').doc(payload.medicationId);
+
+    late DocumentSnapshot<Map<String, dynamic>> snap;
+    try {
+      snap = await medRef.get(const GetOptions(source: Source.serverAndCache));
+    } on FirebaseException catch (e) {
+      if (_isOffline(e)) {
+        await _optimisticWrite(
+          fs: fs, payload: payload, markAsTaken: markAsTaken,
+          scheduledAt: scheduledAt, recordedAt: now,
+        );
+        return true;
+      }
+      rethrow;
     }
 
-    final notificationIds =
-        (data['notificationIds'] as List<dynamic>? ?? const <dynamic>[])
-            .whereType<num>()
-            .map((value) => value.toInt())
-            .toList(growable: false);
+    if (!snap.exists) {
+      await _optimisticWrite(
+        fs: fs, payload: payload, markAsTaken: markAsTaken,
+        scheduledAt: scheduledAt, recordedAt: now,
+      );
+      return true;
+    }
+
+    final data = snap.data()!;
+    if ((data['userId'] as String? ?? '') !=
+        FirebaseAuth.instance.currentUser?.uid) {
+      return false;
+    }
+
+    final ids = (data['notificationIds'] as List? ?? [])
+        .whereType<num>().map((v) => v.toInt()).toList();
     final currentRemaining =
         (data['remainingQuantity'] as num?)?.toInt() ??
-        (data['quantity'] as num?)?.toInt() ??
-        0;
+        (data['quantity'] as num?)?.toInt() ?? 0;
 
-    _DoseStatusResult result;
     if (markAsTaken) {
-      final takenLogs = Map<String, dynamic>.from(
-        data['takenDoseLogs'] as Map<String, dynamic>? ??
-            const <String, dynamic>{},
+      final taken = Map<String, dynamic>.from(
+          data['takenDoseLogs'] as Map? ?? {});
+      if (taken.containsKey(key)) return false; // already recorded
+
+      final nextRemaining = (currentRemaining - 1).clamp(0, 1000000);
+      final archive = nextRemaining <= 0;
+      final nextTaken   = {...taken,  key: Timestamp.fromDate(now)};
+      final nextSkipped = Map<String, dynamic>.from(
+          data['skippedDoseLogs'] as Map? ?? {})..remove(key);
+
+      final reportData = _reportFromRaw(
+        medicationId: payload.medicationId, raw: data,
+        takenLogs: nextTaken, skippedLogs: nextSkipped,
+        remaining: archive ? 0 : nextRemaining,
+        isArchived: archive, archivedAt: archive ? now : null,
+        isDeleted: archive,
+        deletedReason: archive ? 'out_of_stock' : null,
+        deletedAt: archive ? now : null,
       );
-      if (takenLogs.containsKey(key)) {
-        result = _DoseStatusResult(
-          archivedMedication: currentRemaining <= 0,
-          notificationIds: notificationIds,
-          remainingQuantity: currentRemaining,
-          medicationData: data,
-          updated: false,
-        );
+      await reportRef.set(reportData, SetOptions(merge: true));
+
+      if (archive) {
+        await medRef.delete();
+        await cancelNotifications(ids);
+        await cancelNotification(
+            lowStockNotificationIdForMedication(payload.medicationId));
       } else {
-        final nextRemaining = (currentRemaining - 1).clamp(0, 1000000).toInt();
-        final shouldArchive = nextRemaining <= 0;
-        final nextTakenLogs = Map<String, dynamic>.from(takenLogs)
-          ..[key] = Timestamp.fromDate(now);
-        final nextSkippedLogs = Map<String, dynamic>.from(
-          data['skippedDoseLogs'] as Map<String, dynamic>? ??
-              const <String, dynamic>{},
-        )..remove(key);
-        final reportPayload = _buildMedicationReportPayloadFromData(
+        await medRef.set({
+          'takenDoseLogs': nextTaken,
+          'skippedDoseLogs': nextSkipped,
+          'remainingQuantity': nextRemaining,
+          'isArchived': false,
+          'archivedAt': null,
+        }, SetOptions(merge: true));
+        // Reschedule stock reminders with updated remaining count
+        final dosesPerDay = (data['doseTimes'] as List? ?? []).length
+            .clamp(1, 24);
+        final interval = (data['intervalDays'] as num?)?.toInt() ?? 1;
+        await syncMedicationStockReminders(
           medicationId: payload.medicationId,
-          medicationData: data,
-          takenDoseLogs: nextTakenLogs,
-          skippedDoseLogs: nextSkippedLogs,
-          remainingQuantity: shouldArchive ? 0 : nextRemaining,
-          isArchived: shouldArchive,
-          archivedAt: shouldArchive ? now : null,
-          isDeleted: shouldArchive,
-          deletedReason: shouldArchive ? 'out_of_stock' : null,
-          deletedAt: shouldArchive ? now : null,
-        );
-        await reportRef.set(reportPayload, SetOptions(merge: true));
-        if (shouldArchive) {
-          await medicationRef.delete();
-        } else {
-          await medicationRef.set({
-            'takenDoseLogs': nextTakenLogs,
-            'skippedDoseLogs': nextSkippedLogs,
-            'remainingQuantity': nextRemaining,
-            'isArchived': false,
-            'archivedAt': null,
-          }, SetOptions(merge: true));
-        }
-        result = _DoseStatusResult(
-          archivedMedication: shouldArchive,
-          notificationIds: notificationIds,
-          remainingQuantity: shouldArchive ? 0 : nextRemaining,
-          medicationData: Map<String, dynamic>.from(data)
-            ..['remainingQuantity'] = shouldArchive ? 0 : nextRemaining,
-          updated: true,
+          medicationName: payload.medicationName,
+          totalQuantity: (data['quantity'] as num?)?.toInt() ?? 1,
+          remainingQuantity: nextRemaining,
+          dosesPerDay: dosesPerDay,
+          intervalDays: interval,
+          isArabic: false, // background: default English; UI re-syncs on open
         );
       }
     } else {
-      final nextSkippedLogs = Map<String, dynamic>.from(
-        data['skippedDoseLogs'] as Map<String, dynamic>? ??
-            const <String, dynamic>{},
-      )..[key] = Timestamp.fromDate(now);
-      final nextTakenLogs = Map<String, dynamic>.from(
-        data['takenDoseLogs'] as Map<String, dynamic>? ?? const <String, dynamic>{},
-      )..remove(key);
-      await medicationRef.set({
-        'skippedDoseLogs': nextSkippedLogs,
-        'takenDoseLogs': nextTakenLogs,
+      // Skip
+      final skipped = Map<String, dynamic>.from(
+          data['skippedDoseLogs'] as Map? ?? {});
+      final nextSkipped = {...skipped, key: Timestamp.fromDate(now)};
+      final nextTaken   = Map<String, dynamic>.from(
+          data['takenDoseLogs'] as Map? ?? {})..remove(key);
+
+      await medRef.set({
+        'skippedDoseLogs': nextSkipped,
+        'takenDoseLogs': nextTaken,
       }, SetOptions(merge: true));
       await reportRef.set(
-        _buildMedicationReportPayloadFromData(
-          medicationId: payload.medicationId,
-          medicationData: data,
-          takenDoseLogs: nextTakenLogs,
-          skippedDoseLogs: nextSkippedLogs,
+        _reportFromRaw(
+          medicationId: payload.medicationId, raw: data,
+          takenLogs: nextTaken, skippedLogs: nextSkipped,
         ),
         SetOptions(merge: true),
       );
-      result = _DoseStatusResult(
-        notificationIds: notificationIds,
-        remainingQuantity: currentRemaining,
-        medicationData: data,
-        updated: true,
-      );
     }
+    return false;
+  }
 
-    if (result.archivedMedication) {
-      await reportRef.set(
-        _buildMedicationReportPayloadFromData(
-          medicationId: payload.medicationId,
-          medicationData: data,
-          isDeleted: true,
-          deletedReason: 'out_of_stock',
-          deletedAt: now,
-          isArchived: true,
-          archivedAt: now,
-          remainingQuantity: 0,
-        ),
-        SetOptions(merge: true),
-      );
-      await medicationRef.delete();
-      if (result.notificationIds.isNotEmpty) {
-        await cancelNotifications(result.notificationIds);
-      }
-      await cancelNotification(
-        lowStockNotificationIdForMedication(payload.medicationId),
-      );
-      return;
-    }
+  // ── Optimistic offline write ───────────────────────────────────────────
 
-    if (markAsTaken && result.medicationData != null) {
-      await _maybeScheduleLowStockFromData(
-        medicationId: payload.medicationId,
-        medicationData: result.medicationData!,
-      );
+  static Future<void> _optimisticWrite({
+    required FirebaseFirestore fs,
+    required _DosePayload payload,
+    required bool markAsTaken,
+    required DateTime scheduledAt,
+    required DateTime recordedAt,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final key = MedicationModel.doseLogKeyFor(scheduledAt);
+    final ts  = Timestamp.fromDate(recordedAt);
+    final med = fs.collection('medications').doc(payload.medicationId);
+    final rep = fs.collection('medication_reports').doc(payload.medicationId);
+    if (markAsTaken) {
+      await med.set({
+        'takenDoseLogs.$key': ts,
+        'skippedDoseLogs.$key': FieldValue.delete(),
+        'remainingQuantity': FieldValue.increment(-1),
+      }, SetOptions(merge: true));
+      await rep.set({
+        'userId': uid,
+        'sourceMedicationId': payload.medicationId,
+        'name': payload.medicationName,
+        'dose': payload.medicationDose,
+        'takenDoseLogs.$key': ts,
+        'skippedDoseLogs.$key': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } else {
+      await med.set({
+        'skippedDoseLogs.$key': ts,
+        'takenDoseLogs.$key': FieldValue.delete(),
+      }, SetOptions(merge: true));
+      await rep.set({
+        'userId': uid,
+        'sourceMedicationId': payload.medicationId,
+        'name': payload.medicationName,
+        'dose': payload.medicationDose,
+        'skippedDoseLogs.$key': ts,
+        'takenDoseLogs.$key': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     }
   }
 
-  static Future<void> _maybeScheduleLowStockFromData({
-    required String medicationId,
-    required Map<String, dynamic> medicationData,
+  // =========================================================================
+  // PRIVATE: Sync feedback notification
+  // =========================================================================
+
+  static Future<void> _showSyncFeedback({
+    required _DosePayload payload,
+    required bool markAsTaken,
+    required bool queued,
   }) async {
-    final lowStockId = lowStockNotificationIdForMedication(medicationId);
-    await cancelNotification(lowStockId);
-
-    final reminderAt = _estimateLowStockReminderDateFromData(medicationData);
-    if (reminderAt == null) {
-      return;
+    await _ensureBasicPermission();
+    final name   = payload.medicationName.isEmpty ? 'Medication' : payload.medicationName;
+    final nameAr = payload.medicationName.isEmpty ? 'الدواء' : payload.medicationName;
+    final String bodyEn;
+    final String bodyAr;
+    if (queued) {
+      bodyEn = '$name was ${markAsTaken ? "taken" : "skipped"} locally and will sync when online.';
+      bodyAr = 'تم تسجيل ${markAsTaken ? "تناول" : "تخطي"} $nameAr محلياً، وسيُزامن عند الاتصال.';
+    } else {
+      bodyEn = '$name marked as ${markAsTaken ? "taken ✅" : "skipped ⏭️"}.';
+      bodyAr = 'تم تسجيل $nameAr كـ${markAsTaken ? "مأخوذ ✅" : "متخطى ⏭️"}.';
     }
+    final id = 1800000000 +
+        ('${payload.medicationId}_${payload.scheduledAtIso}_$markAsTaken'
+            .hashCode.abs() % 100000000);
+    await _plugin.show(id, 'DawaTime', bodyAr, _syncDetails);
+    // ignore: unused_local_variable
+    final _ = bodyEn; // stored in payload for future multilingual use
+  }
 
-    final medicationName = medicationData['name'] as String? ?? 'Medication';
-    await scheduleLowStockReminder(
-      id: lowStockId,
-      title: 'DawaTime',
-      body: '$medicationName stock is running low. Please refill soon.',
-      reminderAt: reminderAt,
+  // =========================================================================
+  // PRIVATE: Message builders (bilingual)
+  // =========================================================================
+
+  static _BilingualMsg _buildStockMessage({
+    required String medicationName,
+    required int remaining,
+    required int daysLeft,
+    required bool isCritical,
+    required bool isArabic,
+  }) {
+    if (isCritical) {
+      return _BilingualMsg(
+        titleAr: '⚠️ دواء تايم – تحذير عاجل',
+        titleEn: '⚠️ DawaTime – Urgent',
+        bodyAr: 'تبقّت $remaining جرعة فقط من $medicationName. أعِد التعبئة فوراً!',
+        bodyEn: 'Only $remaining dose(s) of $medicationName left. Refill urgently!',
+      );
+    }
+    if (daysLeft <= 1) {
+      return _BilingualMsg(
+        titleAr: '⚠️ دواء تايم – ينفد قريباً',
+        titleEn: '⚠️ DawaTime – Running Out',
+        bodyAr: '$medicationName سينفد اليوم ($remaining جرعة). أعِد التعبئة.',
+        bodyEn: '$medicationName runs out today ($remaining dose(s)). Refill now.',
+      );
+    }
+    return _BilingualMsg(
+      titleAr: '💊 دواء تايم – كمية منخفضة',
+      titleEn: '💊 DawaTime – Low Stock',
+      bodyAr: '$medicationName: تبقّت $remaining جرعة (≈$daysLeft يوم). فكّر في التعبئة.',
+      bodyEn: '$medicationName: $remaining dose(s) left (~$daysLeft days). Consider refilling.',
     );
   }
 
-  static Map<String, dynamic> _buildMedicationReportPayloadFromData({
+  static _BilingualMsg _buildInventoryMessage({
+    required String itemName,
+    required int quantity,
+    required int minQuantity,
+    required bool isArabic,
+  }) {
+    if (quantity <= 0) {
+      return _BilingualMsg(
+        titleAr: '⚠️ دواء تايم – نفاد المخزون',
+        titleEn: '⚠️ DawaTime – Out of Stock',
+        bodyAr: 'نفد $itemName من المخزون تماماً. أعِد التعبئة فوراً!',
+        bodyEn: '$itemName is completely out of stock. Refill immediately!',
+      );
+    }
+    return _BilingualMsg(
+      titleAr: '📦 دواء تايم – مخزون منخفض',
+      titleEn: '📦 DawaTime – Low Inventory',
+      bodyAr: 'مخزون $itemName منخفض ($quantity متبقٍّ، الحد الأدنى $minQuantity).',
+      bodyEn: '$itemName stock is low ($quantity left, min $minQuantity).',
+    );
+  }
+
+  // =========================================================================
+  // PRIVATE: ID helpers
+  // =========================================================================
+
+  static int _stockSlotId(String medId, int dayOffset, int hour, int minute) {
+    final seed = '${medId}_stock_${dayOffset}_${hour}_$minute';
+    return 1100000000 + (seed.hashCode.abs() % 800000000);
+  }
+
+  static int _inventorySlotId(String itemId, int hour, int minute) {
+    final seed = '${itemId}_inv_${hour}_$minute';
+    return 1900000000 + (seed.hashCode.abs() % 90000000);
+  }
+
+  // =========================================================================
+  // PRIVATE: Cancel helpers
+  // =========================================================================
+
+  static Future<void> _cancelAllStockRemindersForMedication(
+      String medicationId) async {
+    await cancelNotification(
+        lowStockNotificationIdForMedication(medicationId));
+    for (var day = 0; day <= reminderPlanningWindowDays + _lowStockLeadDays + 1; day++) {
+      for (final t in _stockTimes) {
+        await cancelNotification(
+            _stockSlotId(medicationId, day, t.hour, t.minute));
+      }
+    }
+  }
+
+  static Future<void> _cancelAllInventoryRemindersForItem(
+      String itemId) async {
+    await cancelNotification(inventoryNotificationIdForItem(itemId));
+    for (final t in _stockTimes) {
+      await cancelNotification(_inventorySlotId(itemId, t.hour, t.minute));
+    }
+  }
+
+  // =========================================================================
+  // PRIVATE: Permissions
+  // =========================================================================
+
+  static Future<void> _ensureAndroidPermissions() async {
+    if (kIsWeb) return;
+    final a = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (a == null) return;
+    try {
+      if (await a.areNotificationsEnabled() == false) {
+        await a.requestNotificationsPermission();
+      }
+    } catch (_) {}
+    try {
+      if (await a.canScheduleExactNotifications() == false) {
+        await a.requestExactAlarmsPermission();
+      }
+    } catch (_) {}
+    try { await a.requestFullScreenIntentPermission(); } catch (_) {}
+  }
+
+  static Future<void> _ensureBasicPermission() async {
+    if (kIsWeb) return;
+    final a = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (a == null) return;
+    try {
+      if (await a.areNotificationsEnabled() == false) {
+        await a.requestNotificationsPermission();
+      }
+    } catch (_) {}
+  }
+
+  // =========================================================================
+  // PRIVATE: Firebase helpers
+  // =========================================================================
+
+  static Future<void> _ensureFirebaseReady() async {
+    if (Firebase.apps.isNotEmpty) return;
+    try {
+      await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform);
+    } catch (_) {
+      await Firebase.initializeApp();
+    }
+    if (!kDebugMode) {
+      try {
+        await FirebaseAppCheck.instance
+            .activate(
+              androidProvider: AndroidProvider.playIntegrity,
+              appleProvider: AppleProvider.appAttestWithDeviceCheckFallback,
+            )
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {}
+    }
+  }
+
+  static Future<void> _ensureAuthLoaded() async {
+    final auth = FirebaseAuth.instance;
+    if (auth.currentUser != null) return;
+    try {
+      await auth.authStateChanges().first.timeout(const Duration(seconds: 15));
+    } catch (_) {}
+  }
+
+  static bool _isOffline(FirebaseException e) =>
+      e.code == 'unavailable' ||
+      e.code == 'deadline-exceeded' ||
+      e.code == 'cancelled' ||
+      e.code == 'unknown';
+
+  // =========================================================================
+  // PRIVATE: Timezone
+  // =========================================================================
+
+  static Future<void> _configureLocalTimeZone() async {
+    try {
+      final name = await _tzChannel.invokeMethod<String>('getLocalTimeZone');
+      if (name == null || name.isEmpty) throw StateError('empty');
+      tz.setLocalLocation(tz.getLocation(name));
+    } catch (_) {
+      tz.setLocalLocation(_fixedOffsetZone());
+    }
+  }
+
+  static tz.Location _fixedOffsetZone() {
+    final h    = DateTime.now().timeZoneOffset.inHours;
+    final sign = h <= 0 ? '+' : '-';
+    try { return tz.getLocation('Etc/GMT$sign${h.abs()}'); } catch (_) {
+      return tz.UTC;
+    }
+  }
+
+  // =========================================================================
+  // PRIVATE: Slot builder for dose reminders
+  // =========================================================================
+
+  static List<tz.TZDateTime> _buildIntervalSlots({
+    required List<MedicationDoseTime> doseTimes,
+    required int intervalDays,
+    required DateTime anchorDate,
+  }) {
+    final now    = tz.TZDateTime.now(tz.local);
+    final anchor = tz.TZDateTime(
+      tz.local,
+      anchorDate.year, anchorDate.month, anchorDate.day,
+    );
+    final today = tz.TZDateTime(tz.local, now.year, now.month, now.day);
+    final elapsed = today.difference(anchor).inDays;
+    final startOff = elapsed <= 0
+        ? 0
+        : elapsed + ((intervalDays - (elapsed % intervalDays)) % intervalDays);
+    final endOff = startOff + reminderPlanningWindowDays;
+
+    final sorted = List<MedicationDoseTime>.from(doseTimes)
+      ..sort((a, b) => a.sortValue.compareTo(b.sortValue));
+
+    final slots = <tz.TZDateTime>[];
+    for (var off = startOff; off <= endOff; off += intervalDays) {
+      final day = anchor.add(Duration(days: off));
+      for (final dt in sorted) {
+        final slot = tz.TZDateTime(
+          tz.local, day.year, day.month, day.day, dt.hour, dt.minute,
+        );
+        if (slot.isAfter(now)) slots.add(slot);
+      }
+    }
+
+    // Guarantee at least one slot
+    if (slots.isEmpty && sorted.isNotEmpty) {
+      final next = now.add(Duration(days: intervalDays));
+      slots.add(tz.TZDateTime(
+        tz.local, next.year, next.month, next.day,
+        sorted.first.hour, sorted.first.minute,
+      ));
+    }
+    return slots;
+  }
+
+  // =========================================================================
+  // PRIVATE: scheduledAt resolver (for background action)
+  // =========================================================================
+
+  static DateTime _resolveScheduledAt(_DosePayload p, DateTime now) {
+    if (p.scheduledAtIso.isNotEmpty) {
+      final parsed = DateTime.tryParse(p.scheduledAtIso);
+      if (parsed != null) return parsed.toLocal();
+    }
+    final derived = DateTime(now.year, now.month, now.day, p.hour, p.minute);
+    final diff = derived.difference(now);
+    if (diff > const Duration(minutes: 5))  return derived.subtract(const Duration(days: 1));
+    if (diff < const Duration(minutes: -5)) return derived.add(const Duration(days: 1));
+    return derived;
+  }
+
+  // =========================================================================
+  // PRIVATE: Next occurrence of a daily time
+  // =========================================================================
+
+  static DateTime _nextOccurrence(int hour, int minute) {
+    final now = DateTime.now().toLocal();
+    final today = DateTime(now.year, now.month, now.day, hour, minute);
+    if (today.isAfter(now)) return today;
+    return today.add(const Duration(days: 1));
+  }
+
+  // =========================================================================
+  // PRIVATE: Report payload builder (from raw Firestore map)
+  // =========================================================================
+
+  static Map<String, dynamic> _reportFromRaw({
     required String medicationId,
-    required Map<String, dynamic> medicationData,
-    Map<String, dynamic>? takenDoseLogs,
-    Map<String, dynamic>? skippedDoseLogs,
-    int? remainingQuantity,
+    required Map<String, dynamic> raw,
+    Map<String, dynamic>? takenLogs,
+    Map<String, dynamic>? skippedLogs,
+    int? remaining,
     bool? isArchived,
     DateTime? archivedAt,
     bool? isDeleted,
     String? deletedReason,
     DateTime? deletedAt,
   }) {
-    final userId = medicationData['userId'] as String? ?? '';
-    final currentTakenLogs =
-        takenDoseLogs ??
-        Map<String, dynamic>.from(
-          medicationData['takenDoseLogs'] as Map<String, dynamic>? ??
-              const <String, dynamic>{},
-        );
-    final currentSkippedLogs =
-        skippedDoseLogs ??
-        Map<String, dynamic>.from(
-          medicationData['skippedDoseLogs'] as Map<String, dynamic>? ??
-              const <String, dynamic>{},
-        );
-    final resolvedCreatedAt = medicationData['createdAt'];
-
     return {
-      'userId': userId,
+      'userId': raw['userId'] ?? '',
       'sourceMedicationId': medicationId,
-      'name': medicationData['name'],
-      'dose': medicationData['dose'],
-      'form': medicationData['form'],
-      'quantity': medicationData['quantity'],
-      'remainingQuantity':
-          remainingQuantity ??
-          ((medicationData['remainingQuantity'] as num?)?.toInt() ??
-              (medicationData['quantity'] as num?)?.toInt() ??
-              0),
-      'doseUnit': medicationData['doseUnit'],
-      'time': medicationData['time'],
-      'hour': medicationData['hour'],
-      'minute': medicationData['minute'],
-      'frequency': medicationData['frequency'],
-      'doseTimes': medicationData['doseTimes'] ?? const <dynamic>[],
-      'intervalDays': medicationData['intervalDays'],
-      'notificationIds': medicationData['notificationIds'] ?? const <dynamic>[],
-      'takenDoseLogs': currentTakenLogs,
-      'skippedDoseLogs': currentSkippedLogs,
-      'isArchived': isArchived ?? (medicationData['isArchived'] as bool? ?? false),
-      'archivedAt': archivedAt == null ? medicationData['archivedAt'] : Timestamp.fromDate(archivedAt),
+      'name': raw['name'],
+      'dose': raw['dose'],
+      'form': raw['form'],
+      'quantity': raw['quantity'],
+      'remainingQuantity': remaining ??
+          ((raw['remainingQuantity'] as num?)?.toInt() ??
+              (raw['quantity'] as num?)?.toInt() ?? 0),
+      'doseUnit': raw['doseUnit'],
+      'time': raw['time'],
+      'hour': raw['hour'],
+      'minute': raw['minute'],
+      'frequency': raw['frequency'],
+      'doseTimes': raw['doseTimes'] ?? const [],
+      'intervalDays': raw['intervalDays'],
+      'notificationIds': raw['notificationIds'] ?? const [],
+      'takenDoseLogs': takenLogs ??
+          Map<String, dynamic>.from(raw['takenDoseLogs'] as Map? ?? {}),
+      'skippedDoseLogs': skippedLogs ??
+          Map<String, dynamic>.from(raw['skippedDoseLogs'] as Map? ?? {}),
+      'isArchived': isArchived ?? (raw['isArchived'] as bool? ?? false),
+      'archivedAt': archivedAt == null
+          ? raw['archivedAt']
+          : Timestamp.fromDate(archivedAt),
       'isDeleted': isDeleted ?? false,
       'deletedReason': deletedReason,
       'deletedAt': deletedAt == null ? null : Timestamp.fromDate(deletedAt),
-      'createdAt': resolvedCreatedAt ?? FieldValue.serverTimestamp(),
+      'createdAt': raw['createdAt'] ?? FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
 
-  static DateTime? _estimateLowStockReminderDateFromData(
-    Map<String, dynamic> data,
-  ) {
-    final remainingQuantity =
-        (data['remainingQuantity'] as num?)?.toInt() ??
-        (data['quantity'] as num?)?.toInt() ??
-        0;
-    if (remainingQuantity <= 0) {
-      return null;
-    }
+  // =========================================================================
+  // PRIVATE: Foreground response router
+  // =========================================================================
 
-    var dosesPerScheduledDay = 0;
-    final doseTimes = data['doseTimes'];
-    if (doseTimes is List) {
-      dosesPerScheduledDay = doseTimes.whereType<Map>().length;
-    }
-    if (dosesPerScheduledDay <= 0) {
-      dosesPerScheduledDay = ((data['frequency'] as num?)?.toInt() ?? 1)
-          .clamp(1, 24)
-          .toInt();
-    }
-
-    final intervalDays = ((data['intervalDays'] as num?)?.toInt() ?? 1)
-        .clamp(1, 365)
-        .toInt();
-    final calendarDaysLeft =
-        ((remainingQuantity / dosesPerScheduledDay).ceil() * intervalDays)
-            .clamp(1, 3650)
-            .toInt();
-
-    final now = DateTime.now().toLocal();
-    final lowStockDate = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).add(Duration(days: calendarDaysLeft - _lowStockLeadDays));
-    final reminderAt = DateTime(
-      lowStockDate.year,
-      lowStockDate.month,
-      lowStockDate.day,
-      9,
-      0,
-    );
-
-    if (!reminderAt.isAfter(now)) {
-      final tomorrow = now.add(const Duration(days: 1));
-      return DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 9);
-    }
-    return reminderAt;
-  }
-
-  static DateTime _resolveScheduledAt(
-    _DoseReminderPayload payload,
-    DateTime now,
-  ) {
-    if (payload.scheduledAtIso.isNotEmpty) {
-      final parsed = DateTime.tryParse(payload.scheduledAtIso);
-      if (parsed != null) {
-        return parsed.toLocal();
-      }
-    }
-
-    final derived = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      payload.hour,
-      payload.minute,
-    );
-    if (derived.isAfter(now.add(const Duration(minutes: 5)))) {
-      return derived.subtract(const Duration(days: 1));
-    }
-    return derived;
-  }
-
-  static Future<void> _configureLocalTimeZone() async {
-    try {
-      final deviceTimeZone = await _timeZoneChannel.invokeMethod<String>(
-        'getLocalTimeZone',
-      );
-      if (deviceTimeZone == null || deviceTimeZone.isEmpty) {
-        throw StateError('No timezone returned from the device.');
-      }
-      tz.setLocalLocation(tz.getLocation(deviceTimeZone));
-    } catch (_) {
-      // Fallback to a fixed-offset zone from device clock to avoid UTC drift.
-      tz.setLocalLocation(_fixedOffsetLocation());
-    }
-  }
-
-  static tz.Location _fixedOffsetLocation() {
-    final offset = DateTime.now().timeZoneOffset;
-    final totalHours = offset.inHours;
-    final sign = totalHours <= 0 ? '+' : '-';
-    final zoneName = 'Etc/GMT$sign${totalHours.abs()}';
-    try {
-      return tz.getLocation(zoneName);
-    } catch (_) {
-      return tz.UTC;
-    }
-  }
-
-  static Future<void> _ensureFirebaseInitialized() async {
-    if (Firebase.apps.isNotEmpty) {
-      return;
-    }
-
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    } catch (_) {
-      await Firebase.initializeApp();
-    }
-  }
-
-  static Future<void> _ensureAuthenticatedUserLoaded() async {
-    final auth = FirebaseAuth.instance;
-    if (auth.currentUser != null) {
-      return;
-    }
-
-    try {
-      await auth.authStateChanges().first.timeout(const Duration(seconds: 15));
-    } catch (_) {
-      // Keep proceeding gracefully; if still null, caller handles it.
-    }
-  }
-
-  static List<tz.TZDateTime> _buildIntervalReminders({
-    required List<MedicationDoseTime> doseTimes,
-    required int intervalDays,
-    required DateTime anchorDate,
-  }) {
-    final now = tz.TZDateTime.now(tz.local);
-    final normalizedAnchorDate = anchorDate.toLocal();
-    final anchor = tz.TZDateTime(
-      tz.local,
-      normalizedAnchorDate.year,
-      normalizedAnchorDate.month,
-      normalizedAnchorDate.day,
-    );
-    final sortedTimes = List<MedicationDoseTime>.from(doseTimes)
-      ..sort((a, b) => a.sortValue.compareTo(b.sortValue));
-
-    final reminders = <tz.TZDateTime>[];
-    for (
-      var offset = 0;
-      offset <= reminderPlanningWindowDays;
-      offset += intervalDays
-    ) {
-      final scheduledDay = anchor.add(Duration(days: offset));
-      for (final doseTime in sortedTimes) {
-        final scheduledDate = tz.TZDateTime(
-          tz.local,
-          scheduledDay.year,
-          scheduledDay.month,
-          scheduledDay.day,
-          doseTime.hour,
-          doseTime.minute,
-        );
-        if (scheduledDate.isAfter(now)) {
-          reminders.add(scheduledDate);
-        }
-      }
-    }
-
-    if (reminders.isEmpty && sortedTimes.isNotEmpty) {
-      final nextDay = now.add(Duration(days: intervalDays));
-      final firstDose = sortedTimes.first;
-      reminders.add(
-        tz.TZDateTime(
-          tz.local,
-          nextDay.year,
-          nextDay.month,
-          nextDay.day,
-          firstDose.hour,
-          firstDose.minute,
-        ),
-      );
-    }
-
-    return reminders;
+  static Future<void> _onForegroundResponse(
+      NotificationResponse response) async {
+    await handleNotificationAction(response);
   }
 }
 
-class _DoseStatusResult {
-  const _DoseStatusResult({
-    this.archivedMedication = false,
-    this.notificationIds = const <int>[],
-    this.remainingQuantity = 0,
-    this.medicationData,
-    this.updated = false,
-  });
-
-  final bool archivedMedication;
-  final List<int> notificationIds;
-  final int remainingQuantity;
-  final Map<String, dynamic>? medicationData;
-  final bool updated;
-}
-
-class _DoseReminderPayload {
-  const _DoseReminderPayload({
+// =============================================================================
+// _DosePayload – JSON-serialisable payload carried inside every dose reminder
+// =============================================================================
+class _DosePayload {
+  const _DosePayload({
     required this.notificationId,
     required this.medicationId,
     required this.medicationName,
@@ -1068,60 +1205,56 @@ class _DoseReminderPayload {
     required this.hour,
     required this.minute,
     required this.scheduledAtIso,
-    required this.title,
-    required this.body,
+    required this.titleAr,
+    required this.titleEn,
+    required this.bodyAr,
+    required this.bodyEn,
   });
 
-  final int notificationId;
+  final int    notificationId;
   final String medicationId;
   final String medicationName;
   final String medicationDose;
-  final int hour;
-  final int minute;
+  final int    hour;
+  final int    minute;
   final String scheduledAtIso;
-  final String title;
-  final String body;
+  final String titleAr;
+  final String titleEn;
+  final String bodyAr;
+  final String bodyEn;
 
-  String toJson() {
-    return jsonEncode(<String, Object>{
-      'notificationId': notificationId,
-      'medicationId': medicationId,
-      'medicationName': medicationName,
-      'medicationDose': medicationDose,
-      'hour': hour,
-      'minute': minute,
-      'scheduledAtIso': scheduledAtIso,
-      'title': title,
-      'body': body,
-    });
-  }
+  String toJson() => jsonEncode({
+    'nid': notificationId,
+    'mid': medicationId,
+    'mn':  medicationName,
+    'md':  medicationDose,
+    'h':   hour,
+    'm':   minute,
+    'sat': scheduledAtIso,
+    'tar': titleAr,
+    'ten': titleEn,
+    'bar': bodyAr,
+    'ben': bodyEn,
+  });
 
-  static _DoseReminderPayload? tryParse(String? source) {
-    if (source == null || source.isEmpty) {
-      return null;
-    }
-
+  static _DosePayload? tryParse(String? src) {
+    if (src == null || src.isEmpty) return null;
     try {
-      final decoded = jsonDecode(source);
-      if (decoded is! Map<String, dynamic>) {
-        return null;
-      }
-
-      return _DoseReminderPayload(
-        notificationId: (decoded['notificationId'] as num?)?.toInt() ?? 0,
-        medicationId: decoded['medicationId'] as String? ?? '',
-        medicationName: decoded['medicationName'] as String? ?? '',
-        medicationDose: decoded['medicationDose'] as String? ?? '',
-        hour: ((decoded['hour'] as num?)?.toInt() ?? 9).clamp(0, 23).toInt(),
-        minute: ((decoded['minute'] as num?)?.toInt() ?? 0)
-            .clamp(0, 59)
-            .toInt(),
-        scheduledAtIso: decoded['scheduledAtIso'] as String? ?? '',
-        title: decoded['title'] as String? ?? '',
-        body: decoded['body'] as String? ?? '',
+      final d = jsonDecode(src);
+      if (d is! Map<String, dynamic>) return null;
+      return _DosePayload(
+        notificationId: (d['nid'] as num?)?.toInt() ?? 0,
+        medicationId:   d['mid'] as String? ?? '',
+        medicationName: d['mn']  as String? ?? '',
+        medicationDose: d['md']  as String? ?? '',
+        hour:   ((d['h'] as num?)?.toInt() ?? 9).clamp(0, 23),
+        minute: ((d['m'] as num?)?.toInt() ?? 0).clamp(0, 59),
+        scheduledAtIso: d['sat'] as String? ?? '',
+        titleAr: d['tar'] as String? ?? '',
+        titleEn: d['ten'] as String? ?? '',
+        bodyAr:  d['bar'] as String? ?? '',
+        bodyEn:  d['ben'] as String? ?? '',
       );
-    } catch (_) {
-      return null;
-    }
+    } catch (_) { return null; }
   }
 }
