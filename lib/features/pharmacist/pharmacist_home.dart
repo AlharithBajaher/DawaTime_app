@@ -432,7 +432,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                             label: context.t(AppText.insights),
                           ),
                           HomeBottomBarItem(
-                            icon: Icons.person_outline_rounded,
+                            icon: Icons.person_rounded,
                             selectedIcon: Icons.person_rounded,
                             label: context.t(AppText.account),
                           ),
@@ -441,7 +441,7 @@ class _PharmacistHomeState extends State<PharmacistHome> {
                       body: Container(
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Color(0xFFF5FBFA), Color(0xFFE3F5F1)],
+                            colors: [AppPalette.canvas, AppPalette.pharmacistImageStart],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                           ),

@@ -37,7 +37,7 @@ class _MedicationActionSheet extends StatelessWidget {
                   children: [
                     IconButton(
                       onPressed: () async => onEdit(),
-                      icon: const Icon(Icons.edit_outlined),
+                      icon: const Icon(Icons.edit_rounded),
                     ),
                     IconButton(
                       onPressed: () async => onDelete(),
@@ -50,7 +50,7 @@ class _MedicationActionSheet extends StatelessWidget {
                 const SizedBox(height: AppSpacing.xs),
                 const CircleAvatar(
                   radius: 26,
-                  backgroundColor: Color(0xFFF0F4FA),
+                  backgroundColor: AppPalette.surfaceAlt,
                   child: Icon(
                     Icons.medication_outlined,
                     color: AppPalette.muted,
@@ -96,7 +96,7 @@ class _MedicationActionSheet extends StatelessWidget {
                           ar: 'إعادة الجدولة',
                           en: 'Reschedule',
                         ),
-                        color: const Color(0xFFE9EFFA),
+                        color: AppPalette.actionButtonBg,
                         onTap: onReschedule,
                       ),
                     ),
@@ -104,15 +104,15 @@ class _MedicationActionSheet extends StatelessWidget {
                       child: _ActionCircleButton(
                         icon: Icons.snooze_rounded,
                         label: context.tr(ar: 'تأجيل 30د', en: 'Snooze 30m'),
-                        color: const Color(0xFFE9EFFA),
+                        color: AppPalette.actionButtonBg,
                         onTap: onSnooze30,
                       ),
                     ),
                     Expanded(
                       child: _ActionCircleButton(
-                        icon: Icons.snooze_outlined,
+                        icon: Icons.snooze_rounded,
                         label: context.tr(ar: 'تأجيل 60د', en: 'Snooze 60m'),
-                        color: const Color(0xFFE9EFFA),
+                        color: AppPalette.actionButtonBg,
                         onTap: onSnooze60,
                       ),
                     ),
@@ -129,7 +129,7 @@ class _MedicationActionSheet extends StatelessWidget {
                       child: _ActionCircleButton(
                         icon: Icons.close_rounded,
                         label: context.tr(ar: 'تخطي', en: 'Skip'),
-                        color: const Color(0xFFE9EFFA),
+                        color: AppPalette.actionButtonBg,
                         onTap: onSkipped,
                       ),
                     ),
@@ -221,7 +221,7 @@ class _MedicationSuccessSheet extends StatelessWidget {
                   ),
                   style: const TextStyle(
                     fontSize: AppFontSize.sectionTitle,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     color: AppPalette.text,
                   ),
                   textAlign: TextAlign.center,
@@ -255,348 +255,4 @@ class _MedicationSuccessSheet extends StatelessWidget {
   }
 }
 
-// ignore: unused_element
-class _ProfileSheet extends StatelessWidget {
-  const _ProfileSheet({required this.onSignOut});
 
-  final Future<void> Function() onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.sm),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 340),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.82,
-            ),
-            child: DepthCard(
-              padding: EdgeInsets.zero,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Padding(
-                      padding: AppSpacing.pagePaddingWide,
-                      child: Column(
-                        children: [
-                          const CircleAvatar(
-                            radius: 40,
-                            backgroundColor: Color(0xFFEAF4FF),
-                            child: Icon(Icons.person_rounded, size: 32),
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(
-                            context.tr(ar: 'ضيف', en: 'Guest'),
-                            style: const TextStyle(
-                              fontSize: AppFontSize.pageTitle,
-                              fontWeight: FontWeight.w900,
-                              color: AppPalette.text,
-                            ),
-                          ),
-                          const SizedBox(height: AppSpacing.xxs),
-                          Text(
-                            context.tr(
-                              ar: 'إنشاء الملف الشخصي',
-                              en: 'Create profile',
-                            ),
-                            style: const TextStyle(
-                              color: AppPalette.muted,
-                              fontSize: AppFontSize.bodyLarge,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    _ProfileItem(
-                      title: context.tr(
-                        ar: 'ملفات التعريف الشخصية',
-                        en: 'Personal profiles',
-                      ),
-                      icon: Icons.badge_outlined,
-                    ),
-                    const Divider(height: 1),
-                    _ProfileItem(
-                      title: context.tr(
-                        ar: 'أضف شخصاً فعالاً',
-                        en: 'Add active person',
-                      ),
-                      icon: Icons.add_circle_outline_rounded,
-                    ),
-                    const Divider(height: 1),
-                    _ProfileItem(
-                      title: context.tr(
-                        ar: 'أصدقاؤك في DawaTime',
-                        en: 'Your DawaTime friends',
-                      ),
-                      icon: Icons.group_outlined,
-                    ),
-                    const Divider(height: 1),
-                    _ProfileItem(
-                      title: context.tr(ar: 'دعوة صديق', en: 'Invite a friend'),
-                      icon: Icons.person_add_alt_1_outlined,
-                    ),
-                    const Divider(height: 1),
-                    _ProfileItem(
-                      title: context.tr(
-                        ar: 'رمز التحقق',
-                        en: 'Verification code',
-                      ),
-                      icon: Icons.qr_code_rounded,
-                    ),
-                    const Divider(height: 1),
-                    _ProfileItem(
-                      title: context.tr(ar: 'تسجيل الخروج', en: 'Sign out'),
-                      icon: Icons.logout_rounded,
-                      onTap: () {
-                        onSignOut();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileItem extends StatelessWidget {
-  const _ProfileItem({required this.title, required this.icon, this.onTap});
-
-  final String title;
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppPalette.patientPrimary.withValues(alpha: 0.10),
-              ),
-              child: Icon(icon, color: AppPalette.patientPrimary),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: AppFontSize.title,
-                  fontWeight: FontWeight.w700,
-                  color: AppPalette.text,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _ReminderTroubleshootPage extends StatelessWidget {
-  const _ReminderTroubleshootPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          context.tr(
-            ar: 'استكشاف وإصلاح أخطاء التذكير',
-            en: 'Troubleshoot reminders',
-          ),
-        ),
-      ),
-      body: Container(
-        color: const Color(0xFFF3F6FB),
-        child: ListView(
-          padding: AppSpacing.pagePadding,
-          children: [
-            _TroubleshootCard(
-              title: context.tr(
-                ar: 'خطوة 1: استثنِ DawaTime من تحسين البطارية',
-                en: 'Step 1: Exclude DawaTime from battery optimization',
-              ),
-              description: context.tr(
-                ar: 'تحسين البطارية قد يقلل نشاط التطبيق في الخلفية، مما قد يؤثر على وصول التذكيرات.',
-                en: 'Battery optimization can reduce background activity and delay reminders.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _TroubleshootCard(
-              title: context.tr(
-                ar: 'خطوة 2: راجع إعدادات إشعارات الجهاز',
-                en: 'Step 2: Review device notification settings',
-              ),
-              description: context.tr(
-                ar: 'تأكد أن الإشعارات مسموحة للتطبيق وأن وضع عدم الإزعاج لا يمنع ظهور التنبيهات.',
-                en: 'Make sure notifications are allowed for the app and Do Not Disturb is not blocking alerts.',
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Center(
-              child: Text(
-                context.tr(
-                  ar: 'تحتاج لمزيد من المساعدة؟\nتواصل مع الدعم',
-                  en: 'Need more help?\nContact support',
-                ),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppPalette.patientPrimary,
-                  fontSize: AppFontSize.sectionTitle,
-                  fontWeight: FontWeight.w800,
-                  height: 1.6,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TroubleshootCard extends StatelessWidget {
-  const _TroubleshootCard({required this.title, required this.description});
-
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return DepthCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.battery_alert_outlined,
-                color: AppPalette.patientPrimary,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: AppFontSize.title,
-                    fontWeight: FontWeight.w900,
-                    color: AppPalette.text,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            description,
-            style: const TextStyle(
-              color: AppPalette.muted,
-              fontSize: AppFontSize.body,
-              height: 1.6,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          OutlinedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    context.tr(
-                      ar: 'تمت إضافة هذه الخطوة كإجراء إرشادي داخل التطبيق.',
-                      en: 'This step was added as an in-app guidance action.',
-                    ),
-                  ),
-                ),
-              );
-            },
-            child: Text(
-              context.tr(ar: 'خذ هذا التصرف', en: 'Take this action'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _InfoSimplePage extends StatelessWidget {
-  const _InfoSimplePage({
-    required this.title,
-    required this.description,
-    required this.icon,
-  });
-
-  final String title;
-  final String description;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Container(
-        color: const Color(0xFFF3F6FB),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: AppLayout.maxSheetWidth,
-            ),
-            child: Padding(
-              padding: AppSpacing.pagePaddingWide,
-              child: DepthCard(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 56, color: AppPalette.patientPrimary),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: AppFontSize.pageTitle,
-                        fontWeight: FontWeight.w900,
-                        color: AppPalette.text,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      description,
-                      style: const TextStyle(
-                        color: AppPalette.muted,
-                        height: 1.6,
-                        fontSize: AppFontSize.body,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

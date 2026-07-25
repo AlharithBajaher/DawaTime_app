@@ -213,7 +213,7 @@ class _MedicationEditorPageState extends State<MedicationEditorPage> {
       body: AnimatedContainer(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeOutCubic,
-        color: const Color(0xFFF3F6FB),
+        color: AppPalette.canvas,
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -633,7 +633,7 @@ class _SectionTitle extends StatelessWidget {
       title,
       style: const TextStyle(
         fontSize: AppFontSize.title,
-        fontWeight: FontWeight.w900,
+        fontWeight: FontWeight.w800,
         color: AppPalette.text,
       ),
     );
@@ -700,7 +700,7 @@ class _DoseTimeTile extends StatelessWidget {
                     style: const TextStyle(
                       color: AppPalette.text,
                       fontSize: AppFontSize.title,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ],

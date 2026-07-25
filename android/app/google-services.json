@@ -7,6 +7,43 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:522623189789:android:2fc6d13323e68f195e97f4",
+        "android_client_info": {
+          "package_name": "com.dawatime.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "522623189789-7emksqomo7n6sefjceenuifbmln420n7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dawatime.app",
+            "certificate_hash": "a68d0f67135822a101a05439f0428a05ea6b91a1"
+          }
+        },
+        {
+          "client_id": "522623189789-8iah6uuvmido63qg1vl512enoskk3bm7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHC8Ie-Q6JW1p9cMVVNP9gyiRdW1W4aiQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "522623189789-8iah6uuvmido63qg1vl512enoskk3bm7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:522623189789:android:c4ab772fcb9b8af25e97f4",
         "android_client_info": {
           "package_name": "com.example.dawatime_app"

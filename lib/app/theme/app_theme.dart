@@ -16,6 +16,25 @@ class AppPalette {
   static const coral = Color(0xFFFF7E79);
   static const amber = Color(0xFFFFC857);
   static const success = Color(0xFF2BB673);
+
+  // Semantic patient colors
+  static const patientFab = Color(0xFFFF7D8F);
+  static const actionButtonBg = Color(0xFFE9EFFA);
+  static const taken = Color(0xFF2E9B6B);
+  static const skipped = Color(0xFFE8A838);
+  static const missed = Color(0xFFD95555);
+  static const starYellow = Color(0xFFFFB100);
+  static const calendarTaken = Color(0xFF1FA65A);
+  static const calendarMissed = Color(0xFFE24C4B);
+
+  // Semantic pharmacist colors
+  static const pharmacistDark = Color(0xFF143937);
+  static const pharmacistMid = Color(0xFF246962);
+  static const pharmacistReviewBg = Color(0xFFF6FBFA);
+  static const pharmacistReviewBorder = Color(0xFFD8EEE9);
+  static const pharmacistWorkflowBg = Color(0xFFF4FBF9);
+  static const pharmacistImageStart = Color(0xFFE3F5F1);
+  static const pharmacistImageEnd = Color(0xFFC6F6E8);
 }
 
 class AppTheme {

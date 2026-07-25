@@ -1,4 +1,4 @@
-﻿part of 'patient_home.dart';
+part of 'patient_home.dart';
 
 class _PatientMarketplaceTab extends StatelessWidget {
   const _PatientMarketplaceTab({
@@ -48,7 +48,7 @@ class _PatientMarketplaceTab extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: AppFontSize.pageTitle,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -115,7 +115,7 @@ class _PatientMarketplaceTab extends StatelessWidget {
                   ),
                   style: const TextStyle(
                     fontSize: AppFontSize.sectionTitle,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     color: AppPalette.text,
                   ),
                 ),
@@ -191,7 +191,7 @@ class _MarketplaceMedicineCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: AppFontSize.sectionTitle,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
                       color: AppPalette.text,
                     ),
                   ),
@@ -332,7 +332,7 @@ class _PatientMedicineDetailsSheet extends StatelessWidget {
                       ),
                       style: const TextStyle(
                         fontSize: AppFontSize.sectionTitle,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                         color: AppPalette.text,
                       ),
                     ),
@@ -530,7 +530,7 @@ class _PatientMedicineDetailsSheet extends StatelessWidget {
                             medicine.name,
                             style: const TextStyle(
                               fontSize: AppFontSize.hero,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                               color: AppPalette.text,
                             ),
                           ),
@@ -730,7 +730,7 @@ class _PatientMedicineDetailsSheet extends StatelessWidget {
                         context.tr(ar: 'الوصف', en: 'Description'),
                         style: const TextStyle(
                           fontSize: AppFontSize.title,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           color: AppPalette.text,
                         ),
                       ),
@@ -751,7 +751,7 @@ class _PatientMedicineDetailsSheet extends StatelessWidget {
                         ),
                         style: const TextStyle(
                           fontSize: AppFontSize.title,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           color: AppPalette.text,
                         ),
                       ),
@@ -772,7 +772,7 @@ class _PatientMedicineDetailsSheet extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.check_rounded),
+                    icon: const Icon(Icons.close_rounded),
                       label: Text(
                         context.tr(
                           ar: 'إغلاق التفاصيل',
@@ -890,7 +890,7 @@ class _MarketplaceMetric extends StatelessWidget {
             style: const TextStyle(
               color: Colors.white,
               fontSize: AppFontSize.metric,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: AppSpacing.xxs),

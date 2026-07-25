@@ -1,0 +1,13 @@
+# PRODUCTION KEYSTORE CONFIGURATION
+# ====================================
+# 1. Copy this file to android/key.properties
+# 2. Generate a keystore:
+#    keytool -genkey -v -keystore release.keystore -alias release \
+#            -keyalg RSA -keysize 2048 -validity 10000
+# 3. Fill in your credentials below
+# 4. NEVER commit key.properties to version control!
+#
+storePassword=your_store_password
+keyPassword=your_key_password
+keyAliase=release
+storeFile=release.keystore

@@ -39,7 +39,7 @@ class _PharmacistOverviewTab extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: AppFontSize.pageTitle,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -157,14 +157,14 @@ class _PharmacyRatingOverviewCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.star_rounded, color: Color(0xFFFFB100)),
+              const Icon(Icons.star_rounded, color: AppPalette.starYellow),
               const SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   context.tr(ar: 'تقييمات الصيدلية', en: 'Pharmacy ratings'),
                   style: const TextStyle(
                     fontSize: AppFontSize.title,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     color: AppPalette.text,
                   ),
                 ),
@@ -221,9 +221,9 @@ class _PharmacistReviewTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: const Color(0xFFF6FBFA),
+        color: AppPalette.pharmacistReviewBg,
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: const Color(0xFFD8EEE9)),
+        border: Border.all(color: AppPalette.pharmacistReviewBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,7 +248,7 @@ class _PharmacistReviewTile extends StatelessWidget {
                   index < rating.rating
                       ? Icons.star_rounded
                       : Icons.star_border_rounded,
-                  color: const Color(0xFFFFB100),
+                  color: AppPalette.starYellow,
                   size: 18,
                 ),
               ),
@@ -293,7 +293,7 @@ class _InsightsTab extends StatelessWidget {
           context.tr(ar: 'تحليلات المخزون', en: 'Inventory insights'),
           style: const TextStyle(
             fontSize: AppFontSize.pageTitle,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
           ),
         ),
         const SizedBox(height: AppSpacing.md),
@@ -464,7 +464,7 @@ class _WorkflowTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4FBF9),
+        color: AppPalette.pharmacistWorkflowBg,
         borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Row(
@@ -685,7 +685,7 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
       children: [
         DepthCard(
           gradient: const LinearGradient(
-            colors: [Color(0xFF143937), Color(0xFF246962)],
+            colors: [AppPalette.pharmacistDark, AppPalette.pharmacistMid],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -707,7 +707,7 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: AppFontSize.sectionTitle,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: AppSpacing.xxs),
@@ -725,9 +725,9 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
         DepthCard(
           child: Row(
             children: [
-              const CircleAvatar(
-                backgroundColor: Color(0xFFFFF4D8),
-                child: Icon(Icons.star_rounded, color: Color(0xFFFFB100)),
+              CircleAvatar(
+                backgroundColor: AppPalette.starYellow.withValues(alpha: 0.15),
+                child: const Icon(Icons.star_rounded, color: AppPalette.starYellow),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -739,7 +739,7 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
                       style: const TextStyle(
                         color: AppPalette.text,
                         fontSize: AppFontSize.body,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xxs),
@@ -769,13 +769,13 @@ class _ModernPharmacistAccountTab extends StatelessWidget {
           child: Column(
             children: [
               _ActionRow(
-                icon: Icons.edit_outlined,
+                icon: Icons.edit_rounded,
                 title: context.tr(ar: 'تعديل الملف الشخصي', en: 'Edit profile'),
                 onTap: onEditProfile,
               ),
               const Divider(),
               _ActionRow(
-                icon: Icons.cloud_done_outlined,
+                icon: Icons.cloud_done_rounded,
                 title: context.tr(
                   ar: 'بيانات الصيدلية داخل صفحة تعديل الملف',
                   en: 'Pharmacy details are managed inside the profile editor',

@@ -24,7 +24,7 @@ class _WorkflowTabModern extends StatelessWidget {
           context.tr(ar: 'إدارة المخزون', en: 'Inventory management'),
           style: const TextStyle(
             fontSize: AppFontSize.pageTitle,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -111,7 +111,7 @@ class _InventoryStockCard extends StatelessWidget {
                       '${task.quantity}',
                       style: const TextStyle(
                         fontSize: AppFontSize.title,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                     IconButton(

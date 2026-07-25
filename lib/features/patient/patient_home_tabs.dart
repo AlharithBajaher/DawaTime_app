@@ -17,7 +17,7 @@ class _PatientTopBar extends StatelessWidget {
             ar: 'مساحة المريض الذكية',
             en: 'Patient workspace',
           ),
-          accentColors: const [Color(0xFF1E88E5), Color(0xFF54B8F7)],
+          accentColors: const [AppPalette.patientPrimary, AppPalette.patientAccent],
           trailingIcon: Icons.notifications_active_rounded,
           onMenuPressed: () => Scaffold.of(context).openDrawer(),
         );
@@ -128,7 +128,7 @@ class _ModernPatientHomeTab extends StatelessWidget {
                   style: const TextStyle(
                     color: AppPalette.patientPrimary,
                     fontSize: AppFontSize.title,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
@@ -154,17 +154,17 @@ class _ModernPatientHomeTab extends StatelessWidget {
                       en: 'Organize your medication schedule',
                     ),
                     style: const TextStyle(
-                      fontSize: AppFontSize.sectionTitle,
-                      fontWeight: FontWeight.w900,
-                      color: AppPalette.text,
-                    ),
-                    textAlign: TextAlign.center,
+                    fontSize: AppFontSize.sectionTitle,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.text,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    context.tr(
-                      ar: 'اعرض جدول اليوم وأوقات الجرعات بشكل واضح ومضغوط حتى تبقى المتابعة أسهل.',
-                      en: 'View today\'s doses in a clear and compact layout so daily follow-up stays easy.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  context.tr(
+                    ar: 'اعرض جدول اليوم وأوقات الجرعات بشكل واضح ومضغوط حتى تبقى المتابعة أسهل.',
+                    en: 'View today\'s doses in a clear and compact layout so daily follow-up stays easy.',
                     ),
                     style: const TextStyle(
                       color: AppPalette.muted,
@@ -311,7 +311,7 @@ class _ModernPatientMedicinesTab extends StatelessWidget {
                 context.tr(ar: 'إدارة أدويتك', en: 'Manage your medicines'),
                 style: const TextStyle(
                   fontSize: AppFontSize.pageTitle,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                   color: AppPalette.text,
                 ),
               ),
@@ -473,7 +473,7 @@ class _UpdatesHeroPanel extends StatelessWidget {
             style: const TextStyle(
               color: Colors.white,
               fontSize: AppFontSize.pageTitle,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -535,7 +535,7 @@ class _UpdateCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: AppFontSize.sectionTitle,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     color: AppPalette.text,
                   ),
                 ),
@@ -632,7 +632,7 @@ class _PatientMoreTab extends StatelessWidget {
           ar: 'لوحة إرشادية خفيفة تربط الالتزام بالجرعات مع عادات يومية مفيدة.',
           en: 'A lightweight guidance board connecting dose adherence with helpful daily habits.',
         ),
-        icon: Icons.monitor_heart_outlined,
+        icon: Icons.monitor_heart_rounded,
         page: _PatientKnowledgePage.healthInsights(context),
       ),
     ];
@@ -686,7 +686,7 @@ class _PatientMoreTab extends StatelessWidget {
                               item.title,
                               style: const TextStyle(
                                 fontSize: AppFontSize.bodyLarge,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w800,
                                 color: AppPalette.text,
                               ),
                             ),
@@ -867,7 +867,7 @@ class _PatientKnowledgePage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: Container(
-        color: const Color(0xFFF3F6FB),
+        color: AppPalette.canvas,
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(
@@ -892,7 +892,7 @@ class _PatientKnowledgePage extends StatelessWidget {
                         title,
                         style: const TextStyle(
                           fontSize: AppFontSize.pageTitle,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           color: Colors.white,
                         ),
                       ),
@@ -970,7 +970,7 @@ class _KnowledgeSectionTile extends StatelessWidget {
                   style: const TextStyle(
                     color: AppPalette.text,
                     fontSize: AppFontSize.bodyLarge,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -1239,7 +1239,7 @@ class _MedicationReportsPage extends StatelessWidget {
         title: Text(context.tr(ar: 'التقارير', en: 'Reports')),
       ),
       body: Container(
-        color: const Color(0xFFF3F6FB),
+        color: AppPalette.canvas,
         child: ListView(
           padding: AppSpacing.pagePadding,
           children: [
@@ -1260,7 +1260,7 @@ class _MedicationReportsPage extends StatelessWidget {
                     ),
                     style: const TextStyle(
                       fontSize: AppFontSize.pageTitle,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
                   ),
@@ -1331,7 +1331,7 @@ class _MedicationReportsPage extends StatelessWidget {
                     ),
                     style: const TextStyle(
                       fontSize: AppFontSize.sectionTitle,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w800,
                       color: AppPalette.text,
                     ),
                   ),
@@ -1392,9 +1392,7 @@ class _MedicationReportsPage extends StatelessWidget {
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
                                   Align(
-                                    alignment: context.isArabic
-                                        ? Alignment.centerLeft
-                                        : Alignment.centerRight,
+                                    alignment: AlignmentDirectional.centerEnd,
                                     child: OutlinedButton.icon(
                                       onPressed: () => _openMonthCalendar(
                                         context,
@@ -1462,15 +1460,15 @@ class _AdherenceReportCard extends StatelessWidget {
           Text(
             title,
             style: const TextStyle(
-              fontSize: AppFontSize.sectionTitle,
-              fontWeight: FontWeight.w900,
-              color: AppPalette.text,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            context.tr(
-              ar: 'نسبة الالتزام: $adherencePercent%',
+                    fontSize: AppFontSize.sectionTitle,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.text,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  context.tr(
+                    ar: 'نسبة الالتزام: $adherencePercent%',
               en: 'Adherence rate: $adherencePercent%',
             ),
             style: const TextStyle(
@@ -1592,14 +1590,14 @@ class _AdherenceBar extends StatelessWidget {
             Expanded(
               flex: (takenFraction * 100).round().clamp(1, 100),
               child: Container(
-                color: const Color(0xFF2E9B6B),
+                color: AppPalette.taken,
                 alignment: Alignment.center,
                 child: takenFraction > 0.12
                     ? Text(
                         '${(takenFraction * 100).round()}%',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: AppFontSize.caption,
                           fontWeight: FontWeight.w800,
                         ),
                       )
@@ -1610,14 +1608,14 @@ class _AdherenceBar extends StatelessWidget {
             Expanded(
               flex: (skippedFraction * 100).round().clamp(1, 100),
               child: Container(
-                color: const Color(0xFFE8A838),
+                color: AppPalette.skipped,
                 alignment: Alignment.center,
                 child: skippedFraction > 0.12
                     ? Text(
                         '${(skippedFraction * 100).round()}%',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: AppFontSize.caption,
                           fontWeight: FontWeight.w800,
                         ),
                       )
@@ -1628,14 +1626,14 @@ class _AdherenceBar extends StatelessWidget {
             Expanded(
               flex: (missedFraction * 100).round().clamp(1, 100),
               child: Container(
-                color: const Color(0xFFD95555),
+                color: AppPalette.missed,
                 alignment: Alignment.center,
                 child: missedFraction > 0.12
                     ? Text(
                         '${(missedFraction * 100).round()}%',
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: AppFontSize.caption,
                           fontWeight: FontWeight.w800,
                         ),
                       )
@@ -1656,11 +1654,11 @@ class _AdherenceLegend extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _legendDot(const Color(0xFF2E9B6B), context.tr(ar: 'مأخوذة', en: 'Taken')),
+        _legendDot(AppPalette.taken, context.tr(ar: 'مأخوذة', en: 'Taken')),
         const SizedBox(width: AppSpacing.sm),
-        _legendDot(const Color(0xFFE8A838), context.tr(ar: 'متخطاة', en: 'Skipped')),
+        _legendDot(AppPalette.skipped, context.tr(ar: 'متخطاة', en: 'Skipped')),
         const SizedBox(width: AppSpacing.sm),
-        _legendDot(const Color(0xFFD95555), context.tr(ar: 'فائتة', en: 'Missed')),
+        _legendDot(AppPalette.missed, context.tr(ar: 'فائتة', en: 'Missed')),
       ],
     );
   }
@@ -1933,7 +1931,7 @@ class _MedicationMonthCalendarSheetState
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           fontSize: AppFontSize.sectionTitle,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           color: AppPalette.text,
                         ),
                       ),
@@ -2176,11 +2174,11 @@ class _MedicineInventoryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                  Text(
                   medication.name,
                   style: const TextStyle(
                     fontSize: AppFontSize.bodyLarge,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     color: AppPalette.text,
                   ),
                 ),
@@ -2357,7 +2355,7 @@ class _DoseMomentCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: AppFontSize.sectionTitle,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                         color: AppPalette.text,
                       ),
                     ),
@@ -2469,14 +2467,14 @@ class _DoseActionIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       onTap: onTap,
       child: Container(
         width: 34,
         height: 34,
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Icon(icon, size: 18, color: color),
       ),
@@ -2590,7 +2588,7 @@ class _QuickActionMenu extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     _QuickActionButton(
-                      icon: Icons.monitor_heart_outlined,
+                      icon: Icons.monitor_heart_rounded,
                       label: context.tr(
                         ar: 'إضافة متتبع صحة',
                         en: 'Add health tracker',
@@ -2604,7 +2602,7 @@ class _QuickActionMenu extends StatelessWidget {
         ),
         FloatingActionButton(
           onPressed: onMainTap,
-          backgroundColor: const Color(0xFFFF7D8F),
+          backgroundColor: AppPalette.patientFab,
           child: AnimatedRotation(
             turns: expanded ? 0.125 : 0,
             duration: const Duration(milliseconds: 220),

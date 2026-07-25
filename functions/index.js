@@ -6,7 +6,6 @@ const nodemailer = require("nodemailer");
 
 admin.initializeApp();
 
-const ADMIN_EMAIL = "hsab7164@gmail.com";
 const APP_NAME = "DawaTime";
 const APP_URL = "https://dawatime.app";
 
@@ -19,7 +18,7 @@ function createTransporter() {
   if (!email || !pass) {
     throw new Error(
       'Gmail credentials not configured. Run:\n' +
-      '  firebase functions:config:set gmail.email="hsab7164@gmail.com" gmail.pass="YOUR_APP_PASSWORD"'
+      '  firebase functions:config:set gmail.email="YOUR_GMAIL" gmail.pass="YOUR_APP_PASSWORD"'
     );
   }
   return nodemailer.createTransport({
@@ -150,7 +149,7 @@ exports.sendNewUserNotification = onDocumentCreated(
 
       const mailOptions = {
         from: `"${APP_NAME} Notifications" <${gmailEmail.value()}>`,
-        to: ADMIN_EMAIL,
+        to: gmailEmail.value(),
         replyTo: user.email,
         ...emailData,
       };
@@ -204,7 +203,7 @@ exports.sendPharmacistApprovalNotification = onDocumentUpdated(
 
       const mailOptions = {
         from: `"${APP_NAME} Notifications" <${gmailEmail.value()}>`,
-        to: ADMIN_EMAIL,
+        to: gmailEmail.value(),
         subject,
         html: `
           <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">

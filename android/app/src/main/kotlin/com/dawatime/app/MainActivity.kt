@@ -1,4 +1,4 @@
-package com.example.dawatime_app
+package com.dawatime.app
 
 import java.util.TimeZone
 import io.flutter.embedding.engine.FlutterEngine

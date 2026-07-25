@@ -1031,7 +1031,7 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
                   body: Stack(
                     children: [
                       Container(
-                        color: const Color(0xFFF1F4F9),
+                        color: AppPalette.canvas,
                         child: SafeArea(
                           child: Column(
                             children: [
@@ -1098,9 +1098,9 @@ class _PatientHomeState extends State<PatientHome> with WidgetsBindingObserver {
                         ),
                       ),
                       if (_selectedTab == 0)
-                        Positioned(
+                        PositionedDirectional(
                           bottom: 70,
-                          left: AppSpacing.lg,
+                          start: AppSpacing.lg,
                           child: _QuickActionMenu(
                             expanded: _showQuickActions,
                             onMainTap: () {

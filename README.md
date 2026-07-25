@@ -1,16 +1,7 @@
-# dawatime_app
+# DawaTime
 
-A new Flutter project.
+Your intelligent medication reminder and pharmacy management platform.
 
-## Getting Started
+DawaTime helps patients manage medication schedules, track dose adherence, and connect with pharmacies. Pharmacists can manage inventory, publish medicines, and engage with patients. Administrators oversee platform operations, approve pharmacist registrations, and manage password recovery requests.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Built with Flutter and Firebase.

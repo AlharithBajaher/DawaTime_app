@@ -36,7 +36,7 @@ class _PharmacistMedicineTab extends StatelessWidget {
       children: [
         DepthCard(
           gradient: const LinearGradient(
-            colors: [Color(0xFF0F766E), Color(0xFF55D8B4)],
+            colors: [AppPalette.pharmacistPrimary, AppPalette.pharmacistAccent],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -52,7 +52,7 @@ class _PharmacistMedicineTab extends StatelessWidget {
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: AppFontSize.pageTitle,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: AppSpacing.xs),
@@ -125,7 +125,7 @@ class _PharmacistMedicineTab extends StatelessWidget {
             child: Column(
               children: [
                 const Icon(
-                  Icons.local_pharmacy_outlined,
+                  Icons.local_pharmacy_rounded,
                   size: 72,
                   color: AppPalette.pharmacistPrimary,
                 ),
@@ -137,7 +137,7 @@ class _PharmacistMedicineTab extends StatelessWidget {
                   ),
                   style: const TextStyle(
                     fontSize: AppFontSize.sectionTitle,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     color: AppPalette.text,
                   ),
                 ),
@@ -276,7 +276,7 @@ class _ModernPublishedMedicineCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: AppFontSize.sectionTitle,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                               color: AppPalette.text,
                             ),
                           ),
@@ -406,7 +406,7 @@ class _ModernPublishedMedicineCard extends StatelessWidget {
               IconButton(
                 onPressed: onDelete,
                 icon: const Icon(
-                  Icons.delete_outline_rounded,
+                  Icons.delete_rounded,
                   color: AppPalette.coral,
                 ),
               ),
@@ -421,7 +421,7 @@ class _ModernPublishedMedicineCard extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFE3F5F1), Color(0xFFC6F6E8)],
+          colors: [AppPalette.pharmacistImageStart, AppPalette.pharmacistImageEnd],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

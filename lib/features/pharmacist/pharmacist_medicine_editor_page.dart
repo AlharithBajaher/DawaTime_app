@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -243,7 +243,7 @@ class _PharmacistMedicineEditorPageState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
       ),
       body: SafeArea(
         child: FutureBuilder<AppUserModel?>(
@@ -557,7 +557,7 @@ class _PharmacyProfileCard extends StatelessWidget {
                       ),
                       style: const TextStyle(
                         fontSize: AppFontSize.sectionTitle,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w800,
                         color: AppPalette.text,
                       ),
                     ),
@@ -586,23 +586,23 @@ class _PharmacyProfileCard extends StatelessWidget {
           if (hasProfile) ...[
             const SizedBox(height: AppSpacing.md),
             _ProfileLine(
-              icon: Icons.person_outline_rounded,
+              icon: Icons.person_rounded,
               label: profile!.displayName,
             ),
             const SizedBox(height: AppSpacing.xs),
             _ProfileLine(
-              icon: Icons.local_pharmacy_outlined,
+              icon: Icons.local_pharmacy_rounded,
               label: profile!.pharmacyName ?? '',
             ),
             const SizedBox(height: AppSpacing.xs),
             _ProfileLine(
-              icon: Icons.location_on_outlined,
+              icon: Icons.location_on_rounded,
               label: profile!.pharmacyLocation ?? '',
             ),
             if ((profile!.pharmacyPhone ?? '').trim().isNotEmpty) ...[
               const SizedBox(height: AppSpacing.xs),
               _ProfileLine(
-                icon: Icons.phone_outlined,
+                icon: Icons.phone_rounded,
                 label: profile!.pharmacyPhone ?? '',
               ),
             ],
@@ -673,7 +673,7 @@ class _MedicineImagePickerCard extends StatelessWidget {
                   context.tr(ar: 'صورة الدواء', en: 'Medicine photo'),
                   style: const TextStyle(
                     fontSize: AppFontSize.sectionTitle,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w800,
                     color: AppPalette.text,
                   ),
                 ),
@@ -727,7 +727,7 @@ class _MedicineImagePickerCard extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF0F766E), Color(0xFF55D8B4)],
+          colors: [AppPalette.pharmacistPrimary, AppPalette.pharmacistAccent],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
